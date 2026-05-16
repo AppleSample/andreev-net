@@ -63,6 +63,16 @@ const{useState,useEffect,useRef,useMemo,useCallback}=React;
    create policy "see own" on friend_requests for select using (auth.uid()=from_id or auth.uid()=to_id);
    create policy "send" on friend_requests for insert with check (auth.uid()=from_id);
    create policy "accept" on friend_requests for update using (auth.uid()=to_id);
+   create policy "remove" on friend_requests for delete using (auth.uid()=from_id or auth.uid()=to_id);
+
+   create table if not exists user_stats (
+     user_id uuid references profiles(id) on delete cascade primary key,
+     weekly_secs int default 0, total_secs int default 0, streak int default 0,
+     updated_at timestamptz default now()
+   );
+   alter table user_stats enable row level security;
+   create policy "read all" on user_stats for select using (true);
+   create policy "own write" on user_stats for all using (auth.uid()=user_id);
    ══════════════════════════════════════════════════════════════ */
 const _sb=(typeof supabase!=='undefined')
   ?supabase.createClient('https://zvcueclanmudepqofvql.supabase.co','sb_publishable_vzhAv6yDZgnDXTrG7XzFsw_jyY1VrRw')
