@@ -2128,12 +2128,49 @@ function Shell({user,onLogout}){
   };
 
   const curTab=TABS.find(t=>t.id===screen);
-  const wkHours=sessions.reduce((acc,s)=>{
-    if(s.secs!=null)return acc+(s.secs/3600);
-    const m=s.duration?.match(/(\d+)h\s+(\d+)m/);
-    return acc+(m?parseInt(m[1])+parseInt(m[2])/60:0);
+
+  // ── real stats computed from sessions ──
+  const _sn=new Date();
+  const _todayY=_sn.getFullYear(),_todayMo=_sn.getMonth(),_todayD=_sn.getDate();
+  const _dow=(_sn.getDay()+6)%7; // 0=Mon
+  const _wkMon=new Date(_sn);_wkMon.setDate(_sn.getDate()-_dow);_wkMon.setHours(0,0,0,0);
+
+  const todayH=sessions.reduce((a,s)=>{
+    if(!s.created_at)return a;
+    const d=new Date(s.created_at);
+    return(d.getFullYear()===_todayY&&d.getMonth()===_todayMo&&d.getDate()===_todayD)?a+sessH(s):a;
   },0);
-  const paceVal=Math.round((wkHours/weeklyTarget)*100);
+
+  const thisWkH=sessions.reduce((a,s)=>{
+    if(!s.created_at)return a;
+    return new Date(s.created_at)>=_wkMon?a+sessH(s):a;
+  },0);
+
+  const _studiedKeys=new Set(sessions.filter(s=>s.created_at).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}));
+  let streak=0;
+  for(let i=0;i<365;i++){const d=new Date(_sn);d.setDate(_sn.getDate()-i);if(_studiedKeys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else if(i===0){break;}else{break;}}
+
+  const _WDAYS=['mon','tue','wed','thu','fri','sat','sun'];
+  const weekBars=_WDAYS.map((day,i)=>{
+    const d=new Date(_wkMon);d.setDate(_wkMon.getDate()+i);
+    const de=new Date(d);de.setDate(d.getDate()+1);
+    const h=sessions.filter(s=>{if(!s.created_at)return false;const sd=new Date(s.created_at);return sd>=d&&sd<de;}).reduce((a,s)=>a+sessH(s),0);
+    return{day,hours:Math.round(h*100)/100,isToday:i===_dow};
+  });
+
+  const _hmRaw=Array.from({length:7},()=>Array(24).fill(0));
+  sessions.filter(s=>s.created_at&&s.secs).forEach(s=>{const d=new Date(s.created_at);_hmRaw[(d.getDay()+6)%7][d.getHours()]+=s.secs/3600;});
+  const _hmMax=Math.max(..._hmRaw.flat(),0.01);
+  const heatmap=_hmRaw.map(row=>row.map(v=>Math.min(1,v/_hmMax)));
+
+  const _hrTot=Array(24).fill(0),_dyTot=Array(7).fill(0);
+  sessions.filter(s=>s.created_at&&s.secs).forEach(s=>{const d=new Date(s.created_at);_hrTot[d.getHours()]+=s.secs/3600;_dyTot[(d.getDay()+6)%7]+=s.secs/3600;});
+  const peakHour=_hrTot.some(v=>v>0)?_hrTot.indexOf(Math.max(..._hrTot)):null;
+  const peakDay=_dyTot.some(v=>v>0)?_dyTot.indexOf(Math.max(..._dyTot)):null;
+  const _30dAgo=new Date(_sn);_30dAgo.setDate(_sn.getDate()-30);
+  const activeDays30=new Set(sessions.filter(s=>s.created_at&&new Date(s.created_at)>=_30dAgo).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;})).size;
+
+  const paceVal=Math.round((thisWkH/weeklyTarget)*100);
   const paceTone=paceVal>=100?'up':paceVal>=75?'flat':'down';
 
   return(
