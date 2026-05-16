@@ -1119,51 +1119,66 @@ function Log({sessions,filterSubjects,filterMinProd}){
 }
 
 /* ── CALENDAR ── */
+function addMins(time,mins){
+  const[h,m]=time.split(':').map(Number);
+  const total=h*60+m+mins;
+  return`${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
+function fmtDurLabel(mins){if(mins<60)return`${mins}m`;if(mins%60===0)return`${mins/60}h`;return`${Math.floor(mins/60)}h${String(mins%60).padStart(2,'0')}m`;}
+
 function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoStates,setEvents,setTodos,onClose,firstDow:firstDowProp,monthLabel,subjects=[]}){
-  const[tab,setTab]=useState('events'); // 'events'|'todos'
+  const[tab,setTab]=useState('events');
   const[newTodoTitle,setNewTodoTitle]=useState('');
   const[newTodoPrio,setNewTodoPrio]=useState('med');
   const[newTodoSubj,setNewTodoSubj]=useState(null);
+  const[newTodoNote,setNewTodoNote]=useState('');
   const[newEvtTitle,setNewEvtTitle]=useState('');
   const[newEvtTime,setNewEvtTime]=useState('09:00');
+  const[newEvtDurMins,setNewEvtDurMins]=useState(60);
   const[newEvtSubj,setNewEvtSubj]=useState(null);
+  const[newEvtNote,setNewEvtNote]=useState('');
+  const[newEvtLocation,setNewEvtLocation]=useState('');
+  const[editingId,setEditingId]=useState(null); // id of event being edited inline
 
   const key=selDateStr;
   const selEvts=(evtsByDay[key]||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
   const selTodos=todosByDay[key]||[];
-  const selDone=selTodos.filter(t=>todoStates[t.id]).length;
   const firstDow=firstDowProp!=null?firstDowProp:0;
   const dow=(firstDow+sel-1)%7;
   const DOWL=['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+  const inpS={background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'7px 10px',outline:'none'};
 
   useEffect(()=>{
-    const handler=e=>{if(e.key==='Escape')onClose();};
+    const handler=e=>{if(e.key==='Escape'){if(editingId)setEditingId(null);else onClose();}};
     window.addEventListener('keydown',handler);
     return()=>window.removeEventListener('keydown',handler);
-  },[onClose]);
+  },[onClose,editingId]);
 
   const addTodo=()=>{
     const title=newTodoTitle.trim();if(!title)return;
     const id=`t_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
     const subj=newTodoSubj?subjects.find(s=>s.name===newTodoSubj):null;
-    setTodos(a=>[...a,{id,day:key,title,subject:subj?.name||null,color:subj?.color||'#5C6776',priority:newTodoPrio,done:false}]);
-    setNewTodoTitle('');
+    setTodos(a=>[...a,{id,day:key,title,subject:subj?.name||null,color:subj?.color||'#5C6776',priority:newTodoPrio,note:newTodoNote.trim()||null,done:false}]);
+    setNewTodoTitle('');setNewTodoNote('');
   };
 
   const addEvent=()=>{
     const title=newEvtTitle.trim();if(!title)return;
     const subj=newEvtSubj?subjects.find(s=>s.name===newEvtSubj):null;
     const id=`e_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
-    setEvents(a=>[...a,{id,day:key,title,time:newEvtTime,subject:subj?.name||null,color:subj?.color||'var(--v1-accent)'}]);
-    setNewEvtTitle('');
+    setEvents(a=>[...a,{id,day:key,title,time:newEvtTime,durMins:newEvtDurMins,subject:subj?.name||null,color:subj?.color||'var(--v1-accent)',note:newEvtNote.trim()||null,location:newEvtLocation.trim()||null}]);
+    setNewEvtTitle('');setNewEvtNote('');setNewEvtLocation('');
   };
 
+  const updateEvent=(id,patch)=>setEvents(a=>a.map(e=>e.id===id?{...e,...patch}:e));
   const removeEvent=id=>setEvents(a=>a.filter(e=>e.id!==id));
   const removeTodo=id=>{setTodos(a=>a.filter(t=>t.id!==id));setTodoStates(s=>{const n={...s};delete n[id];return n;});};
 
+  const DUR_PRESETS=[[15,'15m'],[30,'30m'],[45,'45m'],[60,'1h'],[90,'1h30'],[120,'2h'],[180,'3h']];
+
   return(
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(5,6,8,0.8)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:560,maxHeight:'82vh',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 32px 80px rgba(0,0,0,0.7)',overflow:'hidden'}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:600,maxHeight:'88vh',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 32px 80px rgba(0,0,0,0.7)',overflow:'hidden'}}>
         {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',flexShrink:0}}>
           <div>
@@ -1174,42 +1189,98 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
           <div style={{display:'flex',gap:6}}>
             {[['events',selEvts.length],['todos',selTodos.length]].map(([t,n])=>(
               <button key={t} onClick={()=>setTab(t)} style={{fontFamily:'var(--v1-mono)',fontSize:10,padding:'4px 10px',background:tab===t?'var(--v1-accent)':'transparent',color:tab===t?'var(--v1-bg)':'var(--v1-fg-muted)',border:`1px solid ${tab===t?'var(--v1-accent)':'var(--v1-rule)'}`,cursor:'pointer',letterSpacing:'0.08em'}}>
-                {t} {n>0&&<span style={{opacity:0.8}}>({n})</span>}
+                {t}{n>0&&<span style={{opacity:0.8}}> ({n})</span>}
               </button>
             ))}
           </div>
-          <button onClick={onClose} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'4px 10px',letterSpacing:'0.08em'}}>✕</button>
+          <button onClick={onClose} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'4px 10px'}}>✕</button>
         </div>
+
         {/* Body */}
         <div style={{overflowY:'auto',flex:1}}>
           {tab==='events'&&(
             <div style={{padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}>
               {selEvts.length===0&&<div style={{fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',padding:'8px 0'}}>no events scheduled — add one below</div>}
-              {selEvts.map((e,i)=>(
-                <div key={e.id||i} style={{display:'grid',gridTemplateColumns:'4px 52px 1fr auto',alignItems:'center',gap:10,padding:'9px 12px',border:'1px solid var(--v1-rule)',background:'var(--v1-bg)'}}>
-                  <span style={{width:4,height:'100%',minHeight:24,background:e.color||'var(--v1-accent)'}}/>
-                  <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
-                  <div>
-                    <div style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)'}}>{e.title}</div>
-                    {e.subject&&<div style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{e.subject}</div>}
+              {selEvts.map((e)=>{
+                const endTime=e.durMins?addMins(e.time,e.durMins):null;
+                const isEditing=editingId===e.id;
+                return(
+                  <div key={e.id}>
+                    <div style={{display:'grid',gridTemplateColumns:'4px 1fr auto',gap:0,border:`1px solid ${isEditing?'var(--v1-accent)':'var(--v1-rule)'}`,background:'var(--v1-bg)',transition:'border-color 80ms'}}>
+                      <span style={{background:e.color||'var(--v1-accent)'}}/>
+                      <div style={{padding:'10px 12px'}}>
+                        <div style={{display:'flex',alignItems:'baseline',gap:8,marginBottom:e.note||e.location?4:0}}>
+                          <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums',flexShrink:0}}>{e.time}{endTime&&<span style={{color:'var(--v1-fg-muted)'}}> → {endTime}</span>}</span>
+                          <span style={{fontFamily:'var(--v1-sans)',fontSize:13,color:'var(--v1-fg)',flex:1}}>{e.title}</span>
+                          {e.durMins&&<span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',padding:'1px 5px',border:'1px solid var(--v1-rule)',flexShrink:0}}>{fmtDurLabel(e.durMins)}</span>}
+                        </div>
+                        <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                          {e.subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{e.subject}</span>}
+                          {e.location&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>📍 {e.location}</span>}
+                        </div>
+                        {e.note&&<div style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg-3)',marginTop:4,fontStyle:'italic'}}>{e.note}</div>}
+                      </div>
+                      <div style={{display:'flex',flexDirection:'column',gap:0,borderLeft:'1px solid var(--v1-rule)'}}>
+                        <button onClick={()=>setEditingId(isEditing?null:e.id)} style={{...Btn.sm,border:'none',borderBottom:'1px solid var(--v1-rule)',borderRadius:0,padding:'8px 10px',fontSize:9,color:isEditing?'var(--v1-accent)':'var(--v1-fg-muted)',background:'transparent',flex:1}}>✎</button>
+                        <button onClick={()=>removeEvent(e.id)} style={{...Btn.sm,border:'none',borderRadius:0,padding:'8px 10px',fontSize:9,color:'var(--v1-fg-muted)',background:'transparent',flex:1}}
+                          onMouseEnter={ev=>ev.currentTarget.style.color='var(--v1-down)'}
+                          onMouseLeave={ev=>ev.currentTarget.style.color='var(--v1-fg-muted)'}>✕</button>
+                      </div>
+                    </div>
+                    {isEditing&&(
+                      <div style={{border:'1px solid var(--v1-accent)',borderTop:'none',background:'var(--v1-bg-elev-2)',padding:12,display:'flex',flexDirection:'column',gap:8}}>
+                        <div style={{display:'flex',gap:8}}>
+                          <input defaultValue={e.title} onBlur={ev=>updateEvent(e.id,{title:ev.target.value.trim()||e.title})}
+                            style={{...inpS,flex:1}} placeholder="title"/>
+                          <input type="time" defaultValue={e.time} onBlur={ev=>updateEvent(e.id,{time:ev.target.value})}
+                            style={{...inpS,width:90}}/>
+                        </div>
+                        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                          <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.12em',textTransform:'uppercase'}}>duration</span>
+                          {DUR_PRESETS.map(([m,lbl])=>(
+                            <button key={m} onClick={()=>updateEvent(e.id,{durMins:m})} style={{...Btn.sm,fontSize:9,padding:'2px 7px',background:e.durMins===m?'rgba(79,123,255,0.15)':'transparent',borderColor:e.durMins===m?'var(--v1-accent)':'var(--v1-rule-strong)',color:e.durMins===m?'var(--v1-accent)':'var(--v1-fg-2)'}}>{lbl}</button>
+                          ))}
+                        </div>
+                        <input defaultValue={e.location||''} onBlur={ev=>updateEvent(e.id,{location:ev.target.value.trim()||null})}
+                          style={{...inpS}} placeholder="location (optional)"/>
+                        <input defaultValue={e.note||''} onBlur={ev=>updateEvent(e.id,{note:ev.target.value.trim()||null})}
+                          style={{...inpS}} placeholder="notes (optional)"/>
+                        <button onClick={()=>setEditingId(null)} style={{...Btn.sm,alignSelf:'flex-end',background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontSize:9,padding:'3px 12px'}}>done</button>
+                      </div>
+                    )}
                   </div>
-                  <button onClick={()=>removeEvent(e.id)} style={{...Btn.sm,padding:'2px 8px',fontSize:9,color:'var(--v1-fg-muted)'}}
-                    onMouseEnter={ev=>{ev.currentTarget.style.color='var(--v1-down)';ev.currentTarget.style.borderColor='var(--v1-down)';}}
-                    onMouseLeave={ev=>{ev.currentTarget.style.color='var(--v1-fg-muted)';ev.currentTarget.style.borderColor='var(--v1-rule-strong)';}}>✕</button>
-                </div>
-              ))}
+                );
+              })}
+
               {/* Add event form */}
-              <div style={{border:'1px dashed var(--v1-rule-strong)',background:'var(--v1-bg-elev-2)',padding:12,display:'flex',flexDirection:'column',gap:8}}>
+              <div style={{border:'1px dashed var(--v1-rule-strong)',background:'var(--v1-bg-elev-2)',padding:12,display:'flex',flexDirection:'column',gap:8,marginTop:4}}>
                 <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>add event</div>
                 <div style={{display:'flex',gap:8}}>
                   <input value={newEvtTitle} onChange={e=>setNewEvtTitle(e.target.value)} placeholder="event title" onKeyDown={e=>{if(e.key==='Enter')addEvent();}}
-                    style={{flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'7px 10px',outline:'none'}}
+                    style={{...inpS,flex:1}}
                     onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
                   <input type="time" value={newEvtTime} onChange={e=>setNewEvtTime(e.target.value)}
-                    style={{width:90,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'7px 8px',outline:'none'}}
+                    style={{...inpS,width:90}}
                     onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
                 </div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                {/* Duration */}
+                <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                  <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.12em',textTransform:'uppercase',flexShrink:0}}>duration</span>
+                  {DUR_PRESETS.map(([m,lbl])=>(
+                    <button key={m} onClick={()=>setNewEvtDurMins(m)} style={{...Btn.sm,fontSize:9,padding:'2px 7px',background:newEvtDurMins===m?'rgba(79,123,255,0.15)':'transparent',borderColor:newEvtDurMins===m?'var(--v1-accent)':'var(--v1-rule-strong)',color:newEvtDurMins===m?'var(--v1-accent)':'var(--v1-fg-2)'}}>{lbl}</button>
+                  ))}
+                  <span style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>→ {addMins(newEvtTime,newEvtDurMins)}</span>
+                </div>
+                {/* Location */}
+                <input value={newEvtLocation} onChange={e=>setNewEvtLocation(e.target.value)} placeholder="location (optional)"
+                  style={{...inpS}}
+                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+                {/* Notes */}
+                <input value={newEvtNote} onChange={e=>setNewEvtNote(e.target.value)} placeholder="notes (optional)"
+                  style={{...inpS}}
+                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+                {/* Subject + add */}
+                <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                   <div style={{fontSize:9,letterSpacing:'0.12em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',flexShrink:0}}>subject</div>
                   <div style={{display:'flex',flexWrap:'wrap',gap:5,flex:1}}>
                     <button onClick={()=>setNewEvtSubj(null)} style={{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',fontSize:10,fontFamily:'var(--v1-mono)',background:!newEvtSubj?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${!newEvtSubj?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:!newEvtSubj?'var(--v1-accent)':'var(--v1-fg-2)',cursor:'pointer'}}>none</button>
@@ -1227,23 +1298,30 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
           {tab==='todos'&&(
             <div style={{padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}>
               {selTodos.length===0&&<div style={{fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',padding:'8px 0'}}>no todos for this day — add one below</div>}
-              {selTodos.map((t,i)=>{const isDone=!!todoStates[t.id];return(
-                <div key={t.id} style={{display:'grid',gridTemplateColumns:'4px 18px 1fr auto auto auto',alignItems:'center',gap:10,padding:'9px 12px',border:'1px solid var(--v1-rule)',background:'var(--v1-bg)',cursor:'pointer',opacity:isDone?0.55:1}}
-                  onClick={()=>setTodoStates(s=>({...s,[t.id]:!s[t.id]}))}>
-                  <span style={{width:4,height:'100%',minHeight:20,background:t.color}}/>
-                  <span style={{width:14,height:14,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-rule-strong)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:9,fontWeight:700,flexShrink:0}}>{isDone?'✓':''}</span>
-                  <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none'}}>{t.title}</span>
-                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,padding:'2px 6px',color:t.priority==='high'?'var(--v1-down)':t.priority==='med'?'#F2C14E':'var(--v1-fg-muted)',border:'1px solid currentColor',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t.priority||'low'}</span>
-                  {t.subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{t.subject}</span>}
-                  <button onClick={e=>{e.stopPropagation();removeTodo(t.id);}} style={{...Btn.sm,padding:'2px 7px',fontSize:9,color:'var(--v1-fg-muted)'}}
-                    onMouseEnter={ev=>{ev.currentTarget.style.color='var(--v1-down)';ev.currentTarget.style.borderColor='var(--v1-down)';}}
-                    onMouseLeave={ev=>{ev.currentTarget.style.color='var(--v1-fg-muted)';ev.currentTarget.style.borderColor='var(--v1-rule-strong)';}}>✕</button>
+              {selTodos.map((t)=>{const isDone=!!todoStates[t.id];return(
+                <div key={t.id} style={{border:`1px solid ${isDone?'var(--v1-rule)':'var(--v1-rule)'}`,background:'var(--v1-bg)',opacity:isDone?0.6:1}}>
+                  <div style={{display:'grid',gridTemplateColumns:'4px 20px 1fr auto auto auto',alignItems:'center',gap:10,padding:'10px 12px',cursor:'pointer'}}
+                    onClick={()=>setTodoStates(s=>({...s,[t.id]:!s[t.id]}))}>
+                    <span style={{width:4,height:'100%',minHeight:20,background:t.color||'#5C6776'}}/>
+                    <span style={{width:15,height:15,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-rule-strong)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:9,fontWeight:700,flexShrink:0}}>{isDone?'✓':''}</span>
+                    <div>
+                      <div style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none'}}>{t.title}</div>
+                      {t.note&&<div style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg-3)',fontStyle:'italic',marginTop:2}}>{t.note}</div>}
+                    </div>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:9,padding:'2px 6px',color:t.priority==='high'?'var(--v1-down)':t.priority==='med'?'#F2C14E':'var(--v1-fg-muted)',border:'1px solid currentColor',letterSpacing:'0.1em',textTransform:'uppercase',flexShrink:0}}>{t.priority||'low'}</span>
+                    {t.subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',flexShrink:0}}>{t.subject}</span>}
+                    <button onClick={e=>{e.stopPropagation();removeTodo(t.id);}} style={{...Btn.sm,padding:'2px 7px',fontSize:9,color:'var(--v1-fg-muted)',flexShrink:0}}
+                      onMouseEnter={ev=>{ev.currentTarget.style.color='var(--v1-down)';ev.currentTarget.style.borderColor='var(--v1-down)';}}
+                      onMouseLeave={ev=>{ev.currentTarget.style.color='var(--v1-fg-muted)';ev.currentTarget.style.borderColor='var(--v1-rule-strong)';}}>✕</button>
+                  </div>
                 </div>
               );})}
               {/* Add todo form */}
               <div style={{border:'1px dashed var(--v1-rule-strong)',background:'var(--v1-bg-elev-2)',padding:12,display:'flex',flexDirection:'column',gap:8}}>
                 <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>add todo</div>
                 <Input value={newTodoTitle} onChange={setNewTodoTitle} placeholder="todo description" onKeyDown={e=>{if(e.key==='Enter')addTodo();}}/>
+                <input value={newTodoNote} onChange={e=>setNewTodoNote(e.target.value)} placeholder="notes (optional)"
+                  style={{...inpS}} onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
                 <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
                   <div style={{display:'inline-flex',border:'1px solid var(--v1-rule)'}}>
                     {['low','med','high'].map(p=>{const a=newTodoPrio===p;return<button key={p} onClick={()=>setNewTodoPrio(p)} style={{fontFamily:'var(--v1-mono)',fontSize:9,background:a?'var(--v1-bg-hover)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderRight:'1px solid var(--v1-rule)',padding:'4px 10px',cursor:'pointer',letterSpacing:'0.1em',textTransform:'uppercase'}}>{p}</button>;})}
