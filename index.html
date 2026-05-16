@@ -702,7 +702,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[]}){
 }
 
 /* ── TIMER ── */
-function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual}){
+function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subjects=[]}){
   const tick=useTick(1000);
   const elapsed=sessionState.active
     ?(sessionState.paused
