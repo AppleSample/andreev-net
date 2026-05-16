@@ -1439,24 +1439,30 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
             const open=todos.filter(t=>!todoStates[t.id]).length;
             const done=todos.filter(t=>todoStates[t.id]).length;
             const isTdy=isCurrentMonth&&d===today,isSel=sel===d,hasFlag=evts.some(e=>e.flagged);
+            const maxEvts=3;
             return(
-              <button key={`d${ci}`} onClick={()=>setSel(d)} style={{height:90,background:isSel?'rgba(79,123,255,0.10)':isTdy?'rgba(79,123,255,0.04)':'transparent',border:'none',borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',borderTop:isTdy?'2px solid var(--v1-accent)':'2px solid transparent',padding:'6px 8px',cursor:'pointer',fontFamily:'var(--v1-mono)',textAlign:'left',display:'flex',flexDirection:'column',gap:4,color:'var(--v1-fg)',position:'relative',transition:'background 80ms'}}
+              <button key={`d${ci}`} onClick={()=>setSel(d)} style={{minHeight:100,background:isSel?'rgba(79,123,255,0.10)':isTdy?'rgba(79,123,255,0.04)':'transparent',border:'none',borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',borderTop:isTdy?'2px solid var(--v1-accent)':'2px solid transparent',padding:'5px 7px',cursor:'pointer',fontFamily:'var(--v1-mono)',textAlign:'left',display:'flex',flexDirection:'column',gap:2,color:'var(--v1-fg)',position:'relative',transition:'background 80ms',overflow:'hidden'}}
                 onMouseEnter={e=>{if(!isSel&&!isTdy)e.currentTarget.style.background='rgba(79,123,255,0.05)';}}
                 onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background=isTdy?'rgba(79,123,255,0.04)':'transparent';}}>
-                <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <span style={{fontSize:12,fontVariantNumeric:'tabular-nums',color:isTdy?'var(--v1-accent)':isSel?'var(--v1-fg)':'var(--v1-fg-2)',fontWeight:isTdy?700:400}}>{String(d).padStart(2,'0')}</span>
-                  {isTdy&&<span style={{fontSize:7,letterSpacing:'0.14em',color:'var(--v1-accent)',fontWeight:600}}>TODAY</span>}
+                {/* Date row */}
+                <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2,flexShrink:0}}>
+                  <span style={{fontSize:11,fontVariantNumeric:'tabular-nums',color:isTdy?'var(--v1-accent)':isSel?'var(--v1-fg)':'var(--v1-fg-2)',fontWeight:isTdy?700:400}}>{String(d).padStart(2,'0')}</span>
+                  {isTdy&&<span style={{fontSize:7,letterSpacing:'0.12em',color:'var(--v1-accent)',fontWeight:600,textTransform:'uppercase'}}>today</span>}
                   {hasFlag&&<span style={{marginLeft:'auto',color:'var(--v1-down)',fontSize:9}}>!</span>}
                 </div>
-                {evts.length>0&&(
-                  <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
-                    {evts.slice(0,5).map((e,ii)=><span key={ii} style={{width:6,height:6,background:e.color,flexShrink:0,borderRadius:1}}/>)}
-                    {evts.length>5&&<span style={{fontSize:8,color:'var(--v1-fg-muted)'}}>+{evts.length-5}</span>}
+                {/* Event rows */}
+                {evts.slice(0,maxEvts).map((e,ii)=>(
+                  <div key={ii} style={{display:'flex',alignItems:'center',gap:3,minWidth:0,flexShrink:0,overflow:'hidden'}}>
+                    <span style={{width:3,height:'100%',minHeight:10,background:e.color||'var(--v1-accent)',flexShrink:0,borderRadius:1}}/>
+                    <span style={{fontSize:9,color:'var(--v1-fg-3)',flexShrink:0,fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
+                    <span style={{fontSize:10,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',minWidth:0,fontFamily:'var(--v1-sans)'}}>{e.title}</span>
                   </div>
-                )}
+                ))}
+                {evts.length>maxEvts&&<span style={{fontSize:8,color:'var(--v1-fg-muted)',flexShrink:0}}>+{evts.length-maxEvts} more</span>}
+                {/* Todo count */}
                 {todos.length>0&&(
-                  <div style={{marginTop:'auto',fontSize:8,color:open>0?'var(--v1-fg-muted)':'var(--v1-up)',fontVariantNumeric:'tabular-nums'}}>
-                    {done}/{todos.length} {open===0?'✓':'todo'}
+                  <div style={{marginTop:'auto',fontSize:8,color:open>0?'var(--v1-fg-muted)':'var(--v1-up)',fontVariantNumeric:'tabular-nums',flexShrink:0}}>
+                    {done}/{todos.length} {open===0?'✓':'·'}
                   </div>
                 )}
               </button>
