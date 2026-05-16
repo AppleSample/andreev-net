@@ -1622,7 +1622,8 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
   const[localSubjs,setLocalSubjs]=useState(filterSubjects||[]);
   const[localProd,setLocalProd]=useState(filterMinProd||0);
   const inputRef=useRef(null);
-  const allSubjs=[...new Set([...D.subjects.map(s=>s.name),...subjects.map(s=>s.subject)])].filter(Boolean);
+  const allSubjs=[...new Set(subjects.map(s=>s.subject))].filter(Boolean);
+  const subjColorMap=Object.fromEntries(subjects.filter(s=>s.subject&&s.color).map(s=>[s.subject,s.color]));
   const toggleSubj=s=>setLocalSubjs(a=>a.includes(s)?a.filter(x=>x!==s):[...a,s]);
   const hasFilters=localSubjs.length>0||localProd>0;
 
