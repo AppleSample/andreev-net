@@ -1549,21 +1549,27 @@ function AuthScreen({onAuth}){
   const[gLoading,setGLoading]=useState(false);
   const emailRef=useRef(null);
 
-  /* Wire up Netlify Identity once on mount */
-  useEffect(()=>{
-    if(!window.netlifyIdentity)return;
-    netlifyIdentity.init({APIUrl:'https://andreev-net.netlify.app/.netlify/identity'});
-    const handler=u=>{
-      if(!u)return;
-      netlifyIdentity.close();
-      const user={id:u.id,name:u.user_metadata?.full_name||u.email.split('@')[0],email:u.email,avatar:u.user_metadata?.avatar_url||null,provider:'netlify'};
-      localAuth.saveSession(user);
-      setGLoading(false);
-      onAuth(user);
+  /* Load Netlify Identity widget script on demand, wire up handlers once loaded */
+  const loadAndOpenIdentity=useCallback(()=>{
+    const init=()=>{
+      netlifyIdentity.init({APIUrl:'https://andreev-net.netlify.app/.netlify/identity'});
+      netlifyIdentity.on('login',u=>{
+        if(!u)return;
+        netlifyIdentity.close();
+        const user={id:u.id,name:u.user_metadata?.full_name||u.email.split('@')[0],email:u.email,avatar:u.user_metadata?.avatar_url||null,provider:'netlify'};
+        localAuth.saveSession(user);
+        setGLoading(false);
+        onAuth(user);
+      });
+      netlifyIdentity.on('error',err=>{setGLoading(false);setError(err?.message||'sign-in failed');});
+      netlifyIdentity.open();
     };
-    netlifyIdentity.on('login',handler);
-    netlifyIdentity.on('error',err=>{setGLoading(false);setError(err?.message||'google sign-in failed');});
-    return()=>{try{netlifyIdentity.off('login',handler);}catch(e){}};
+    if(window.netlifyIdentity){init();return;}
+    const s=document.createElement('script');
+    s.src='https://identity.netlify.com/v1/netlify-identity-widget.js';
+    s.onload=init;
+    s.onerror=()=>{setGLoading(false);setError('could not load identity widget — check connection');};
+    document.head.appendChild(s);
   },[onAuth]);
 
   useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
