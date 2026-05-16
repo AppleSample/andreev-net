@@ -2187,7 +2187,9 @@ function Shell({user,onLogout}){
     const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
     const subj=D.subjects.find(s=>s.name===subject);
     const color=subj?subj.color:'#5C6776';
-    setSessions(prev=>[{day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||''},...prev]);
+    const newEntry={day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,secs,productivity:rating,note:note||''};
+    setSessions(prev=>[newEntry,...prev]);
+    if(_sb&&user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:newEntry.secs,productivity:newEntry.productivity,note:newEntry.note,day:newEntry.day,time:newEntry.time,color:newEntry.color}).catch(()=>{});
     setScreen('log');
   };
 
