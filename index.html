@@ -1535,6 +1535,8 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
 }
 
 /* ── AUTH SCREEN ── */
+/* Uses Netlify Identity for Google OAuth (enable at app.netlify.com → Identity)
+   Falls back to local email/password when Identity is not configured             */
 function GoogleSetupModal({onClose,onSave}){
   const[clientId,setClientId]=useState('');
   const save=()=>{
