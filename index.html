@@ -829,8 +829,13 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
     const secs=(h*3600)+(m*60);
     const subj=logSubject||logCustom.trim();
     if(!secs||!subj)return;
-    onLogManual&&onLogManual({subject:subj,secs,rating:logRating,note:logNote});
+    const d=new Date();d.setDate(d.getDate()-logDateOffset);
+    const[th,tm]=(logTime||'00:00').split(':').map(Number);
+    d.setHours(th,tm,0,0);
+    onLogManual&&onLogManual({subject:subj,secs,rating:logRating,note:logNote,at:d});
     setLogSubject(null);setLogCustom('');setLogHours('');setLogMins('');setLogNote('');setLogRating(null);
+    setLogTime(()=>{const n=new Date();return`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;});
+    setLogDateOffset(0);
     setMode('timer');
   };
 
