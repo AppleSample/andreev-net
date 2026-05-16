@@ -1219,9 +1219,8 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
   const prevMonth=()=>setCalMonth(cm=>{const m=cm.month-1;return m<0?{year:cm.year-1,month:11}:{year:cm.year,month:m};});
   const nextMonth=()=>setCalMonth(cm=>{const m=cm.month+1;return m>11?{year:cm.year+1,month:0}:{year:cm.year,month:m};});
 
-  // events and todos only show for current month (May) — others show empty
-  const activeEvtsByDay=isCurrentMonth?evtsByDay:{};
-  const activeTodosByDay=isCurrentMonth?todosByDay:{};
+  const activeEvtsByDay=evtsByDay;
+  const activeTodosByDay=todosByDay;
 
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',overflow:'hidden'}}>
