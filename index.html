@@ -2489,7 +2489,7 @@ function Shell({user,onLogout}){
           {k:'wk',     v:fmtHM(thisWkH), d:`of ${weeklyTarget}h target`, up:thisWkH>0, tone:null,   nav:'heatmap'},
           {k:'rank',   v:myRank?`#${myRank}`:'—', d:myRank?`of ${leaderboard.length}`:'add friends to rank', up:myRank===1&&leaderboard.length>1, tone:null, nav:'leader'},
           {k:'peak',   v:peakHour!=null?`${String(peakHour).padStart(2,'0')}h`:'—', d:peakHour!=null?'peak study hour':'no data yet', up:peakHour!=null, tone:null, nav:'heatmap'},
-          {k:'pace',   v:`${paceVal}%`,  d:`of ${weeklyTarget}h target`, up:paceVal>=100, tone:paceTone, nav:'heatmap'},
+          {k:'pace',   v:`${paceVal}%`,  d:_paceDesc, up:paceVal>=100, tone:paceTone, nav:'heatmap'},
         ].map((c,i)=>{
           const vColor=c.tone==='up'?'var(--v1-up)':c.tone==='down'?'var(--v1-down)':'var(--v1-fg)';
           return(
