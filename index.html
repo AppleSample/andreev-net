@@ -1359,13 +1359,18 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
 
   // Build ranked list from leaderboard (includes you + friends with real stats)
   const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
-  // Merge in your real computed series for "you"
   const me=ranked.find(u=>u.isYou)||{id:user?.id,name:'you',isYou:true,wkH:myTotal,weekly_secs:myTotal*3600,streak,rank:1};
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
-  const top=ranked[0]||me;
 
+  // Build chart series: real series for you, approximated for friends
+  const myWkSum=mySeries.reduce((a,v)=>a+v,0)||0.001;
   const chartSeries=[
     {name:'you',color:'var(--v1-accent)',values:mySeries,fillFirst:true},
+    ...ranked.filter(u=>!u.isYou).map((u,i)=>{
+      const friendWk=u.weekly_secs/3600;
+      const ratio=friendWk/myWkSum;
+      return{name:u.name,color:FRIEND_COLORS[i%FRIEND_COLORS.length],values:mySeries.map(v=>v*ratio),dim:true};
+    }),
   ];
 
   return(
