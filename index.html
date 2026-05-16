@@ -696,15 +696,33 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
           <WeekBars bars={weekBars}/>
         </Block>
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
-          <Tbl cols={['#','who','wk hrs','sessions']} widths={['28px','auto','80px','72px']}>
-            <Row hi>
-              <Cell mono dim>#01</Cell>
-              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:'var(--v1-accent)',borderRadius:1,flexShrink:0}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell>
-              <Cell mono right>{fmtHM(thisWkH)}</Cell>
-              <Cell mono right dim>{sessions.length}</Cell>
-            </Row>
-          </Tbl>
-          <div style={{padding:'10px 0 2px',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',textAlign:'center'}}>add friends in the net tab to see rankings</div>
+          {(()=>{
+            const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
+            if(ranked.length===0)return(
+              <EmptyState icon="👥" title="you're the only one here"
+                hint="invite friends to study together and compete on the leaderboard"
+              />
+            );
+            const me=ranked.find(u=>u.isYou);
+            const myIdx=ranked.findIndex(u=>u.isYou);
+            const total=ranked.length;
+            let indices;
+            if(myIdx<=0)indices=[0,1,2];
+            else if(myIdx>=total-1)indices=[Math.max(0,total-3),total-2<0?0:total-2,total-1];
+            else indices=[myIdx-1,myIdx,myIdx+1];
+            const rows=indices.filter(i=>i>=0&&i<total).map(i=>ranked[i]);
+            return(
+              <Tbl cols={['#','who','wk hrs']} widths={['28px','auto','80px']}>
+                {rows.map((u,i)=>(
+                  <Row key={u.id} hi={u.isYou}>
+                    <Cell mono dim>#{String(u.rank).padStart(2,'0')}</Cell>
+                    <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:u.isYou?'var(--v1-accent)':FRIEND_COLORS[u.rank%FRIEND_COLORS.length],borderRadius:1,flexShrink:0}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}</span></Cell>
+                    <Cell mono right>{fmtHM(u.wkH)}</Cell>
+                  </Row>
+                ))}
+              </Tbl>
+            );
+          })()}
         </Block>
       </section>
 
