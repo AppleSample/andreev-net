@@ -125,6 +125,20 @@ const sbAPI={
     const ids=data.map(r=>r.from_id===uid?r.to_id:r.from_id);
     const{data:pr}=await _sb.from('profiles').select('id,name').in('id',ids);
     return pr||[];
+  },
+  async upsertStats(uid,stats){
+    await _sb.from('user_stats').upsert({user_id:uid,weekly_secs:Math.round((stats.thisWkH||0)*3600),total_secs:Math.round((stats.totalH||0)*3600),streak:stats.streak||0,updated_at:new Date().toISOString()});
+  },
+  async getLeaderboard(uid){
+    const{data:reqs}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
+    const friendIds=(reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id);
+    const allIds=[uid,...friendIds];
+    const[{data:stats},{data:profs}]=await Promise.all([
+      _sb.from('user_stats').select('*').in('user_id',allIds),
+      _sb.from('profiles').select('id,name').in('id',allIds),
+    ]);
+    const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
+    return(stats||[]).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0}));
   }
 };
 
