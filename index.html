@@ -1989,22 +1989,6 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
               );})}
             </div>
           )}
-          {!q&&(
-            <div>
-              <div style={{padding:'8px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>navigate</div>
-              {CMD_NAV.map((c,i)=>{const active=sel===i;return(
-                <div key={c.id} onMouseEnter={()=>setSel(i)} onClick={()=>runItem({type:'nav',...c})}
-                  style={{display:'grid',gridTemplateColumns:'36px 1fr auto',alignItems:'center',gap:10,padding:'8px 14px',background:active?'rgba(79,123,255,0.10)':'transparent',cursor:'pointer',borderLeft:`3px solid ${active?'var(--v1-accent)':'transparent'}`}}>
-                  <span style={{fontSize:15,textAlign:'center',color:active?'var(--v1-accent)':'var(--v1-fg-muted)'}}>{c.icon}</span>
-                  <div>
-                    <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)'}}>{c.label}</span>
-                    <span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:10}}>{c.desc}</span>
-                  </div>
-                  <span style={{fontSize:10,color:'var(--v1-fg-muted)',border:'1px solid var(--v1-rule)',padding:'1px 6px',letterSpacing:'0.08em'}}>{c.kbd}</span>
-                </div>
-              );})}
-            </div>
-          )}
         </div>
         {/* footer hint */}
         <div style={{padding:'6px 14px',borderTop:'1px solid var(--v1-rule)',display:'flex',gap:14,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em'}}>
