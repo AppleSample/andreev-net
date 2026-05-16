@@ -118,7 +118,7 @@ const sbAPI={
     return data.map(r=>({id:r.id,from:r.from_id,fromName:pm[r.from_id]?.name||'unknown'}));
   },
   async acceptRequest(reqId){await _sb.from('friend_requests').update({status:'accepted'}).eq('id',reqId);},
-  async declineRequest(reqId){await _sb.from('friend_requests').delete().eq('id',reqId);},
+  async declineRequest(reqId){await _sb.from('friend_requests').update({status:'declined'}).eq('id',reqId);},
   async getFriends(uid){
     const{data}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
     if(!data?.length)return[];
