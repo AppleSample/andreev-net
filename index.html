@@ -574,7 +574,7 @@ function DashAgenda({onNav,events=[],todos=[],todoStates={},setTodoStates}){
   const ts=todoStates;
   const setTs=id=>setTodoStates(s=>({...s,[id]:!s[id]}));
   const todos_=todayTodos;
-  if(evts.length===0&&todos.length===0){
+  if(evts.length===0&&todos_.length===0){
     return(
       <EmptyState icon="📅" title="no events or tasks today"
         hint="add events and todos to the calendar to see your day here"
@@ -586,32 +586,32 @@ function DashAgenda({onNav,events=[],todos=[],todoStates={},setTodoStates}){
     <div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
         <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
-        <MiniStat k="todos" v={`${done}/${todos.length}`} sub={`${pct.toFixed(0)}% done`} tone={pct===100?'up':'flat'}/>
-        <MiniStat k="focus_due" v={todos.filter(t=>!ts[t.id]&&t.priority==='high').length} sub="high priority" tone={todos.filter(t=>!ts[t.id]&&t.priority==='high').length>0?'down':'flat'}/>
+        <MiniStat k="todos" v={`${done}/${todos_.length}`} sub={`${pct.toFixed(0)}% done`} tone={pct===100?'up':'flat'}/>
+        <MiniStat k="focus_due" v={todos_.filter(t=>!ts[t.id]&&t.priority==='high').length} sub="high priority" tone={todos_.filter(t=>!ts[t.id]&&t.priority==='high').length>0?'down':'flat'}/>
       </div>
-      {todos.length>0&&<div style={{display:'flex',gap:3,marginTop:10,height:4}}>{todos.map(t=><div key={t.id} style={{flex:1,background:ts[t.id]?'var(--v1-up)':'var(--v1-bg-elev-2)',transition:'background 120ms'}}/>)}</div>}
+      {todos_.length>0&&<div style={{display:'flex',gap:3,marginTop:10,height:4}}>{todos_.map(t=><div key={t.id} style={{flex:1,background:ts[t.id]?'var(--v1-up)':'var(--v1-bg-elev-2)',transition:'background 120ms'}}/>)}</div>}
       {evts.length>0&&<div style={{marginTop:12}}>
         <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>▸ events</div>
         <div style={{border:'1px solid var(--v1-rule)'}}>
           {evts.map((e,i)=>{
             const isNext=next&&e.time===next.time&&!evts.slice(0,i).some(x=>x.time===next.time);
             return<div key={i} style={{display:'grid',gridTemplateColumns:'4px 52px 1fr auto',alignItems:'center',gap:10,padding:'7px 10px',borderBottom:i<evts.length-1?'1px solid var(--v1-rule)':'none',background:isNext?'rgba(79,123,255,0.06)':'transparent'}}>
-              <span style={{width:4,height:16,background:e.color,flexShrink:0}}/>
+              <span style={{width:4,height:16,background:e.color||'var(--v1-fg-muted)',flexShrink:0}}/>
               <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:isNext?'var(--v1-accent)':'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
-              <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.title}{e.flagged&&<span style={{color:'var(--v1-down)',marginLeft:6}}>!</span>}</span>
+              <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.title}</span>
               <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',whiteSpace:'nowrap'}}>{e.subject||'—'}</span>
             </div>;
           })}
         </div>
       </div>}
-      {todos.length>0&&<div style={{marginTop:12}}>
+      {todos_.length>0&&<div style={{marginTop:12}}>
         <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,display:'flex',alignItems:'center',gap:8,fontFamily:'var(--v1-mono)'}}>
-          <span>▸ todos</span><span style={{flex:1}}/><span style={{color:'var(--v1-fg-3)'}}>{done}/{todos.length}</span>
+          <span>▸ todos</span><span style={{flex:1}}/><span style={{color:'var(--v1-fg-3)'}}>{done}/{todos_.length}</span>
         </div>
         <div style={{border:'1px solid var(--v1-rule)'}}>
-          {todos.map((t,i)=>{const isDone=!!ts[t.id];return(
-            <div key={t.id} style={{display:'grid',gridTemplateColumns:'4px 16px 1fr auto auto',alignItems:'center',gap:10,padding:'7px 10px',borderBottom:i<todos.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.55:1,transition:'opacity 120ms'}}
-              onClick={()=>setTs(s=>({...s,[t.id]:!s[t.id]}))}
+          {todos_.map((t,i)=>{const isDone=!!ts[t.id];return(
+            <div key={t.id} style={{display:'grid',gridTemplateColumns:'4px 16px 1fr auto auto',alignItems:'center',gap:10,padding:'7px 10px',borderBottom:i<todos_.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.55:1,transition:'opacity 120ms'}}
+              onClick={()=>setTs(t.id)}
               onMouseEnter={e=>!isDone&&(e.currentTarget.style.background='rgba(79,123,255,0.04)')}
               onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
               <span style={{width:4,height:16,background:t.color,flexShrink:0}}/>
