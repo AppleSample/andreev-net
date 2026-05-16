@@ -664,7 +664,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
                       {wkH}<span style={{color:'var(--v1-fg-muted)'}}>h</span>{String(wkM).padStart(2,'0')}<span style={{color:'var(--v1-fg-muted)'}}>m</span><Cursor size="0.35em" color="var(--v1-accent)"/>
                     </div>
                   </div>
-                  <SparkWide data={sessions.map(s=>s.secs!=null?s.secs/3600:((m=>{return m?parseInt(m[1])+parseInt(m[2])/60:0;})(s.duration?.match(/(\d+)h\s+(\d+)m/))))} h={72} color="var(--v1-accent)" fill sw={1.5}/>
+                  <SparkWide data={weekBars.map(b=>b.hours)} h={72} color="var(--v1-accent)" fill sw={1.5}/>
                 </div>
               )}
             </Block>
