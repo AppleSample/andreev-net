@@ -1466,62 +1466,106 @@ function Subjects(){
 }
 
 /* ── NETWORK ── */
-function Friend(){
-  const[scope,setScope]=useState('7d');
-  const others=D.leaderboard.filter(u=>!u.isYou);
-  if(others.length===0){
-    return(
-      <Block label="network.members" meta="1 member">
-        <EmptyState icon="🤝" title="no study partners yet"
-          hint="once friends join and connect, you'll see head-to-head comparisons and live activity here"
-        />
-      </Block>
-    );
-  }
-  const[frName,setFrName]=useState(others[0].name);
-  const[open,setOpen]=useState(false);
-  const friend=others.find(u=>u.name===frName)||others[0];
-  const frIdx=D.leaderboard.findIndex(u=>u.name===frName);
-  const meSeries=userSeries(0,scope),frSeries=userSeries(frIdx,scope);
-  const meTotal=sumH(meSeries),frTotal=sumH(frSeries);
-  const chartSeries=[
-    {name:'you',color:'var(--v1-accent)',values:meSeries,fill:true},
-    {name:friend.name,color:friend.color,values:frSeries,dim:true},
-  ];
+const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
+function getFriendData(uid){try{return JSON.parse(localStorage.getItem('andreev_fd_'+uid)||'{"friends":[],"requests":[]}')}catch{return{friends:[],requests:[]};}}
+function setFriendData(uid,d){localStorage.setItem('andreev_fd_'+uid,JSON.stringify(d));}
+
+function Friend({user}){
+  const uid=user?.id;
+  const[friends,setFriends]=useState([]);
+  const[requests,setRequests]=useState([]);
+  const[query,setQuery]=useState('');
+  const[results,setResults]=useState([]);
+  const[status,setStatus]=useState(null); // {ok,err}
+  const[searching,setSearching]=useState(false);
+  const inputRef=useRef(null);
+
+  useEffect(()=>{
+    if(!_sb||!uid)return;
+    sbAPI.getFriends(uid).then(setFriends).catch(()=>{});
+    sbAPI.getPendingRequests(uid).then(setRequests).catch(()=>{});
+  },[uid]);
+
+  const doSearch=async()=>{
+    const q=query.trim();
+    if(!q){setStatus({err:'enter a name to search'});return;}
+    setSearching(true);setResults([]);setStatus(null);
+    const r=await sbAPI.searchProfiles(q,uid);
+    setSearching(false);
+    if(!r.length){setStatus({err:`no users found for "${q}" — they need to sign up first`});return;}
+    setResults(r);
+  };
+
+  const sendReq=async(target)=>{
+    const r=await sbAPI.sendFriendRequest(uid,target.id);
+    if(r.error){setStatus({err:r.error});return;}
+    setResults([]);setQuery('');setStatus({ok:`request sent to ${target.name}`});
+  };
+
+  const acceptReq=async(req)=>{
+    await sbAPI.acceptRequest(req.id);
+    setRequests(r=>r.filter(x=>x.id!==req.id));
+    sbAPI.getFriends(uid).then(setFriends);
+  };
+
+  const declineReq=async(req)=>{
+    await sbAPI.declineRequest(req.id);
+    setRequests(r=>r.filter(x=>x.id!==req.id));
+  };
+
+  const fieldStyle={flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 10px',outline:'none'};
+
   return(
     <div>
-      <Block label="network.compare" meta="head-to-head trend overlay" action={<ScopePicker scope={scope} onScope={setScope}/>}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)',marginBottom:18}}>
-          <KPI k="your_hours" v={fmtHM(meTotal)} sub={scopeLabel(scope)} tone="flat"/>
-          <KPI k={`${friend.name}_hours`} v={fmtHM(frTotal)} sub={scopeLabel(scope)}/>
-          <KPI k="lead" v={`${meTotal>=frTotal?'+':'−'}${fmtHM(Math.abs(meTotal-frTotal))}`} sub={`vs ${friend.name}`} tone={meTotal>=frTotal?'up':'down'}/>
-          <KPI k="comparing_vs" v={friend.name} sub={`streak ${friend.streak}d`}/>
-        </div>
-        <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.16em',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>compare vs</span>
-          <div style={{position:'relative'}}>
-            <button onClick={()=>setOpen(p=>!p)} style={{...Btn.sm,display:'inline-flex',alignItems:'center',gap:8}}>
-              <span style={{width:8,height:8,background:friend.color}}/><span style={{color:'var(--v1-fg)'}}>{friend.name}</span><span style={{color:'var(--v1-fg-muted)'}}>▾</span>
-            </button>
-            {open&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:30,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',minWidth:160,boxShadow:'0 12px 30px rgba(0,0,0,0.5)'}}>
-              {others.map(u=><button key={u.name} onClick={()=>{setFrName(u.name);setOpen(false);}} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',background:u.name===frName?'rgba(79,123,255,0.1)':'transparent',border:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',textAlign:'left'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.08)'} onMouseLeave={e=>e.currentTarget.style.background=u.name===frName?'rgba(79,123,255,0.1)':'transparent'}><span style={{width:7,height:7,background:u.color}}/>{u.name}</button>)}
-            </div>}
-          </div>
-        </div>
-        <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
-      </Block>
-      <Block label="network.members" meta={`${D.leaderboard.length} members`}>
-        <Tbl cols={['#','who','streak','wk hrs','trend']} widths={['28px','auto','60px','80px','120px']}>
-          {D.leaderboard.map((u,i)=>(
-            <Row key={u.name} hi={u.isYou}>
-              <Cell mono dim>#{i+1}</Cell>
-              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:u.color}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}{u.online&&<span title="online" style={{width:7,height:7,background:'#22C55E',borderRadius:'50%',boxShadow:'0 0 5px #22C55E88',flexShrink:0}}/>}</span></Cell>
-              <Cell mono dim>{u.streak}d</Cell>
-              <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
-              <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
-            </Row>
+      {requests.length>0&&(
+        <Block label="network.requests" meta={`${requests.length} pending`}>
+          {requests.map((req,i)=>(
+            <div key={req.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<requests.length-1?'1px solid var(--v1-rule)':'none'}}>
+              <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{req.fromName} wants to connect</span>
+              <button onClick={()=>acceptReq(req)} style={{...Btn.sm,background:'var(--v1-up)',color:'var(--v1-bg)',borderColor:'var(--v1-up)',padding:'4px 12px',fontWeight:600}}>accept</button>
+              <button onClick={()=>declineReq(req)} style={{...Btn.sm,padding:'4px 10px'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>decline</button>
+            </div>
           ))}
-        </Tbl>
+        </Block>
+      )}
+      <Block label="network.add" meta="find by name">
+        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12}}>
+          <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);setResults([]);setStatus(null);}}
+            placeholder="search by name…" style={fieldStyle}
+            onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
+            onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
+            onKeyDown={e=>{if(e.key==='Enter')doSearch();}}/>
+          <button onClick={doSearch} disabled={searching}
+            style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',padding:'8px 16px',flexShrink:0,fontWeight:600,opacity:searching?0.7:1}}>
+            {searching?'…':'search →'}
+          </button>
+        </div>
+        {status?.err&&<div style={{fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)',marginBottom:8}}>✕ {status.err}</div>}
+        {status?.ok&&<div style={{padding:'8px 12px',background:'rgba(107,216,154,0.08)',border:'1px solid var(--v1-up)',fontSize:11,color:'var(--v1-up)',fontFamily:'var(--v1-mono)',marginBottom:8}}>✓ {status.ok}</div>}
+        {results.length>0&&<div style={{border:'1px solid var(--v1-rule-strong)'}}>
+          {results.map((u,i)=>(
+            <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none'}}>
+              <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{u.name}</span>
+              <button onClick={()=>sendReq(u)} style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600,padding:'4px 12px'}}>add →</button>
+            </div>
+          ))}
+        </div>}
+      </Block>
+      <Block label="network.members" meta={`${friends.length+1} member${friends.length!==0?'s':''}`}>
+        {friends.length===0
+          ?<EmptyState title="no friends yet" hint="search by name above to send a friend request"/>
+          :<Tbl cols={['who','']} widths={['auto','1fr']}>
+            <Row hi><Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:'var(--v1-accent)'}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell><Cell/></Row>
+            {friends.map(f=>(
+              <Row key={f.id}>
+                <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:FRIEND_COLORS[0]}}/>{f.name}</span></Cell>
+                <Cell/>
+              </Row>
+            ))}
+          </Tbl>
+        }
       </Block>
     </div>
   );
