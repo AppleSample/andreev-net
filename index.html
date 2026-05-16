@@ -1760,39 +1760,55 @@ function GoogleSetupModal({onClose,onSave}){
 }
 
 function AuthScreen({onAuth}){
-  const[step,setStep]=useState('email'); // 'email'|'code'
-  const[email,setEmail]=useState('');
+  const[mode,setMode]=useState('signin'); // 'signin'|'signup'|'verify'
   const[name,setName]=useState('');
+  const[email,setEmail]=useState('');
+  const[password,setPassword]=useState('');
+  const[confirm,setConfirm]=useState('');
   const[code,setCode]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
-  const emailRef=useRef(null);
+  const firstRef=useRef(null);
   const codeRef=useRef(null);
 
-  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[]);
-  useEffect(()=>{if(step==='code')setTimeout(()=>codeRef.current?.focus(),60);},[step]);
+  useEffect(()=>{setTimeout(()=>firstRef.current?.focus(),60);},[mode]);
+  useEffect(()=>{if(mode==='verify')setTimeout(()=>codeRef.current?.focus(),60);},[mode]);
 
-  const sendCode=async e=>{
-    e.preventDefault();
-    if(!email.trim()){setError('email is required');return;}
-    setLoading(true);setError('');
-    const res=await sbAPI.sendOTP(email.trim().toLowerCase());
-    setLoading(false);
-    if(res.error){setError(res.error);return;}
-    setStep('code');
-  };
+  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
 
-  const verifyCode=async e=>{
+  const doSignIn=async e=>{
     e.preventDefault();
-    if(!code.trim()){setError('enter the 6-digit code');return;}
+    if(!email.trim()||!password){setError('email and password are required');return;}
     setLoading(true);setError('');
-    const res=await sbAPI.verifyOTP(email.trim().toLowerCase(),code.trim(),name.trim());
+    const res=await sbAPI.signIn(email.trim().toLowerCase(),password);
     setLoading(false);
     if(res.error){setError(res.error);return;}
     onAuth(res.user);
   };
 
-  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
+  const doSignUp=async e=>{
+    e.preventDefault();
+    if(!name.trim()){setError('display name is required');return;}
+    if(!email.trim()){setError('email is required');return;}
+    if(password.length<6){setError('password must be at least 6 characters');return;}
+    if(password!==confirm){setError('passwords do not match');return;}
+    setLoading(true);setError('');
+    const res=await sbAPI.signUp(email.trim().toLowerCase(),password,name.trim());
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    if(res.needsVerification){setMode('verify');}
+    else if(res.user){onAuth(res.user);}
+  };
+
+  const doVerify=async e=>{
+    e.preventDefault();
+    if(code.trim().length<6){setError('enter the 6-digit code from your email');return;}
+    setLoading(true);setError('');
+    const res=await sbAPI.verifyEmail(email.trim().toLowerCase(),code.trim());
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    onAuth(res.user);
+  };
 
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
@@ -1804,59 +1820,101 @@ function AuthScreen({onAuth}){
         <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
       </div>
 
-      {/* card */}
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
-        <div style={{padding:'13px 24px',borderBottom:'1px solid var(--v1-rule)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--v1-fg-2)'}}>
-          {step==='email'?'sign in / create account':'check your email'}
-        </div>
 
-        {step==='email'?(
-          <form onSubmit={sendCode} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.6}}>
-              enter your email — we'll send a 6-digit code. no password needed.
+        {/* tabs — only shown on signin/signup */}
+        {mode!=='verify'&&(
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
+            {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
+              <button key={id} onClick={()=>{setMode(id);setError('');}} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* verify email step */}
+        {mode==='verify'&&(
+          <div style={{padding:'13px 24px',borderBottom:'1px solid var(--v1-rule)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--v1-fg-2)'}}>
+            verify your email
+          </div>
+        )}
+
+        {/* sign in form */}
+        {mode==='signin'&&(
+          <form onSubmit={doSignIn} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
+              <input ref={firstRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600}}>
+              {loading?'signing in...':'sign in →'}
+            </button>
+          </form>
+        )}
+
+        {/* sign up form */}
+        {mode==='signup'&&(
+          <form onSubmit={doSignUp} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
+              <input ref={firstRef} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
               <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-              <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>
-                display name <span style={{color:'var(--v1-fg-muted)',letterSpacing:'0.02em',textTransform:'none'}}>(for new accounts)</span>
-              </label>
-              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="min 6 characters" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
-            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-              {loading?'sending...':'send code →'}
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
+              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600}}>
+              {loading?'creating account...':'create account →'}
             </button>
           </form>
-        ):(
-          <form onSubmit={verifyCode} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.6}}>
-              code sent to <span style={{color:'var(--v1-fg)'}}>{email}</span>. check your inbox (and spam).
+        )}
+
+        {/* verify step — shown after signup when email confirmation needed */}
+        {mode==='verify'&&(
+          <form onSubmit={doVerify} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.7}}>
+              a verification code was sent to<br/><span style={{color:'var(--v1-fg)',fontWeight:600}}>{email}</span>.<br/>check your inbox and paste the code below.
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>6-digit code</label>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>verification code</label>
               <input ref={codeRef} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" maxLength={6}
-                style={{...fieldStyle,fontSize:22,letterSpacing:'0.35em',textAlign:'center'}}
+                style={{...fieldStyle,fontSize:24,letterSpacing:'0.35em',textAlign:'center'}}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
-            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-              {loading?'verifying...':'verify →'}
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600}}>
+              {loading?'verifying...':'verify & sign in →'}
             </button>
-            <button type="button" onClick={()=>{setStep('email');setCode('');setError('');}} style={{padding:'6px 0',background:'transparent',border:'none',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em'}}>
-              ← use a different email
+            <button type="button" onClick={()=>{setMode('signup');setCode('');setError('');}} style={{padding:'6px 0',background:'transparent',border:'none',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em'}}>
+              ← back
             </button>
           </form>
         )}
       </div>
 
-      {/* footer note */}
       <div style={{position:'absolute',bottom:16,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.12em',textTransform:'uppercase'}}>
-        powered by supabase · secure email verification
+        powered by supabase · data synced across devices
       </div>
     </div>
   );
