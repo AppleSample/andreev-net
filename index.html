@@ -1332,6 +1332,122 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
 }
 
 /* ── HOURS / HEATMAP ── */
+function DailyHeatmap({sessions}){
+  const[hov,setHov]=useState(null);
+
+  // Build date→hours map from sessions
+  const dayMap={};
+  sessions.filter(s=>s.created_at).forEach(s=>{
+    const d=new Date(s.created_at);
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    dayMap[k]=(dayMap[k]||0)+sessH(s);
+  });
+
+  // Grid: 52 weeks × 7 days, ending today
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayDow=(today.getDay()+6)%7; // 0=Mon
+  const gridStart=new Date(today);
+  gridStart.setDate(today.getDate()-todayDow-51*7);
+
+  const WEEKS=52,CELL=12,GAP=2;
+  const DAYLABELS=['mon','','wed','','fri','',''];
+  const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+
+  // Build cells[week][day]
+  const cells=Array.from({length:WEEKS},(_,w)=>Array.from({length:7},(_,d)=>{
+    const date=new Date(gridStart);
+    date.setDate(gridStart.getDate()+w*7+d);
+    const isFuture=date>today;
+    const k=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+    const hours=isFuture?0:(dayMap[k]||0);
+    return{date:new Date(date),hours,isFuture,k};
+  }));
+
+  // Max hours for color scaling
+  const allHours=Object.values(dayMap);
+  const maxH=allHours.length?Math.max(...allHours,0.5):4;
+
+  const cellColor=({hours,isFuture})=>{
+    if(isFuture)return'transparent';
+    if(hours===0)return'var(--v1-bg-elev-2)';
+    const t=Math.min(1,hours/Math.max(maxH*0.6,2));
+    return`rgba(79,123,255,${(0.22+t*0.78).toFixed(2)})`;
+  };
+
+  // Month label: show label at first week of each month
+  const monthLabel=w=>{
+    const d=new Date(gridStart);d.setDate(gridStart.getDate()+w*7);
+    const prev=new Date(gridStart);prev.setDate(gridStart.getDate()+(w-1)*7);
+    if(w===0||d.getMonth()!==prev.getMonth())return MONTHS[d.getMonth()];
+    return null;
+  };
+
+  const totalWidth=24+WEEKS*(CELL+GAP);
+
+  return(
+    <div style={{position:'relative',overflowX:'auto'}}>
+      <div style={{width:totalWidth,userSelect:'none'}}>
+        {/* Month labels */}
+        <div style={{display:'flex',marginLeft:24,marginBottom:4,height:12}}>
+          {Array.from({length:WEEKS},(_,w)=>{
+            const lbl=monthLabel(w);
+            return<div key={w} style={{width:CELL+GAP,fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',flexShrink:0,overflow:'visible',whiteSpace:'nowrap'}}>{lbl||''}</div>;
+          })}
+        </div>
+        {/* Grid */}
+        <div style={{display:'flex',gap:0}}>
+          {/* Day labels */}
+          <div style={{width:24,display:'flex',flexDirection:'column',gap:GAP,marginTop:0,flexShrink:0}}>
+            {DAYLABELS.map((lbl,d)=>(
+              <div key={d} style={{height:CELL,fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',display:'flex',alignItems:'center',lineHeight:1}}>{lbl}</div>
+            ))}
+          </div>
+          {/* Week columns */}
+          {cells.map((week,w)=>(
+            <div key={w} style={{display:'flex',flexDirection:'column',gap:GAP,marginRight:GAP,flexShrink:0}}>
+              {week.map((cell,d)=>(
+                <div key={d}
+                  style={{width:CELL,height:CELL,background:cellColor(cell),borderRadius:2,cursor:cell.isFuture?'default':'crosshair',flexShrink:0,transition:'opacity 80ms',opacity:hov&&hov.k===cell.k?0.75:1}}
+                  onMouseEnter={e=>{if(!cell.isFuture)setHov({...cell,cx:e.clientX,cy:e.clientY});}}
+                  onMouseMove={e=>{if(!cell.isFuture)setHov(h=>h?{...h,cx:e.clientX,cy:e.clientY}:null);}}
+                  onMouseLeave={()=>setHov(null)}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+        {/* Legend */}
+        <div style={{marginTop:10,display:'flex',gap:4,alignItems:'center',fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+          <span style={{marginRight:2}}>less</span>
+          {['var(--v1-bg-elev-2)',...[0.22,0.42,0.62,0.82,1.0].map(v=>`rgba(79,123,255,${v})`)].map((bg,i)=>(
+            <div key={i} style={{width:CELL,height:CELL,background:bg,borderRadius:2,flexShrink:0}}/>
+          ))}
+          <span style={{marginLeft:2}}>more</span>
+        </div>
+      </div>
+
+      {/* Tooltip — fixed so it's never clipped */}
+      {hov&&(
+        <div style={{
+          position:'fixed',left:hov.cx+14,top:hov.cy-56,
+          pointerEvents:'none',zIndex:600,
+          background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',
+          padding:'7px 11px',fontFamily:'var(--v1-mono)',
+          boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:140
+        }}>
+          <div style={{fontSize:9,letterSpacing:'0.12em',color:'var(--v1-fg-3)',textTransform:'uppercase',marginBottom:4}}>
+            {hov.date.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short',year:'numeric'}).toLowerCase()}
+          </div>
+          <div style={{fontSize:16,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:hov.hours>0?'var(--v1-accent)':'var(--v1-fg-muted)',fontWeight:600}}>
+            {hov.hours>0?fmtHM(hov.hours):'no sessions'}
+          </div>
+          {hov.hours>0&&<div style={{fontSize:10,color:'var(--v1-fg-3)',marginTop:2}}>{hov.hours.toFixed(2)}h studied</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FocusGrid({heatmap}){
   const days=['mon','tue','wed','thu','fri','sat','sun'];
   const grid=heatmap&&heatmap.length===7?heatmap:Array.from({length:7},()=>Array(24).fill(0));
