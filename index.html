@@ -1955,14 +1955,10 @@ function Shell({user,onLogout}){
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[]);
-  const now=new Date();
-  const clockStr=now.toUTCString().split(' ')[4];
+  const clockStr=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Madrid',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 
   useEffect(()=>{
-    const onKey=e=>{
-      if(e.key==='Escape'&&showPicker){setShowPicker(false);return;}
-      const t=TABS.find(t=>t.kbd===e.key);if(t)setScreen(t.id);
-    };
+    const onKey=e=>{if(e.key==='Escape'&&showPicker)setShowPicker(false);};
     window.addEventListener('keydown',onKey);
     return()=>window.removeEventListener('keydown',onKey);
   },[showPicker]);
