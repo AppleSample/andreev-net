@@ -2437,7 +2437,12 @@ function Shell({user,onLogout}){
   const activeDays30=new Set(sessions.filter(s=>s.created_at&&new Date(s.created_at)>=_30dAgo).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;})).size;
 
   const paceVal=Math.round((thisWkH/weeklyTarget)*100);
-  const paceTone=paceVal>=100?'up':paceVal>=75?'flat':'down';
+  const paceTone=paceVal>=100?'up':paceVal>=50?'flat':'down';
+
+  // Real rank from leaderboard
+  const _sortedLb=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs);
+  const myRankPos=_sortedLb.findIndex(u=>u.isYou);
+  const myRank=myRankPos>=0?myRankPos+1:leaderboard.length>0?leaderboard.length+1:null;
 
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
