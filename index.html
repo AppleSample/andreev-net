@@ -1114,7 +1114,7 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
   );
 }
 
-function Calendar(){
+function Calendar({subjects=[]}){
   const TODAY_MONTH={year:_now.getFullYear(),month:_now.getMonth()};
   const today=_now.getDate();
   const[sel,setSel]=useState(null);
