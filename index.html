@@ -1736,6 +1736,11 @@ function Friend({user}){
     setRequests(r=>r.filter(x=>x.id!==req.id));
   };
 
+  const removeFriend=async(friendId)=>{
+    await sbAPI.removeFriend(uid,friendId).catch(()=>{});
+    setFriends(f=>f.filter(x=>x.id!==friendId));
+  };
+
   const fieldStyle={flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 10px',outline:'none'};
 
   return(
