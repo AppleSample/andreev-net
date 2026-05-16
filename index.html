@@ -1436,14 +1436,14 @@ function CommandPalette({sessions,onClose,onNav,onStartSession}){
   const q=query.trim().toLowerCase();
 
   const COMMANDS=[
-    {icon:'▶',label:'start new session',      hint:'begin tracking study time',   tag:'session', action:()=>{onClose();onStartSession();}},
-    {icon:'＋',label:'add a subject',           hint:'create a subject to track',   tag:'subj',    action:()=>{onNav('subjects');onClose();}},
-    {icon:'◈',label:'add a friend',            hint:'invite someone to compete',   tag:'net',     action:()=>{onNav('friend');onClose();}},
-    {icon:'◎',label:'view leaderboard',        hint:'see your rank vs friends',    tag:'rank',    action:()=>{onNav('leader');onClose();}},
-    {icon:'▦',label:'view heatmap',            hint:'your hours over time',        tag:'hours',   action:()=>{onNav('heatmap');onClose();}},
-    {icon:'◫',label:'view calendar',           hint:'schedule events & todos',     tag:'cal',     action:()=>{onNav('calendar');onClose();}},
-    {icon:'≡',label:'view session log',        hint:'browse all past sessions',    tag:'log',     action:()=>{onNav('log');onClose();}},
-    {icon:'⌂',label:'go to home',              hint:'dashboard overview',          tag:'home',    action:()=>{onNav('dashboard');onClose();}},
+    {icon:'→',label:'start new session',      hint:'begin tracking study time',   tag:'session', action:()=>{onClose();onStartSession();}},
+    {icon:'→',label:'add a subject',           hint:'create a subject to track',   tag:'subj',    action:()=>{onNav('subjects');onClose();}},
+    {icon:'→',label:'add a friend',            hint:'invite someone to compete',   tag:'net',     action:()=>{onNav('friend');onClose();}},
+    {icon:'→',label:'view leaderboard',        hint:'see your rank vs friends',    tag:'rank',    action:()=>{onNav('leader');onClose();}},
+    {icon:'→',label:'view heatmap',            hint:'your hours over time',        tag:'hours',   action:()=>{onNav('heatmap');onClose();}},
+    {icon:'→',label:'view calendar',           hint:'schedule events & todos',     tag:'cal',     action:()=>{onNav('calendar');onClose();}},
+    {icon:'→',label:'view session log',        hint:'browse all past sessions',    tag:'log',     action:()=>{onNav('log');onClose();}},
+    {icon:'→',label:'go to home',              hint:'dashboard overview',          tag:'home',    action:()=>{onNav('dashboard');onClose();}},
   ];
 
   // filter commands by query
