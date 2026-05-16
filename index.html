@@ -1409,19 +1409,32 @@ function SubjectsDonut({scoped,total}){
 }
 
 const SUBJ_KEY='andreev_subjects';
-function loadSubjects(userId){try{return JSON.parse(localStorage.getItem(SUBJ_KEY+'_'+userId)||'[]');}catch{return[];}}
-function saveSubjects(userId,s){localStorage.setItem(SUBJ_KEY+'_'+userId,JSON.stringify(s));}
+function loadSubjectsLocal(userId){try{return JSON.parse(localStorage.getItem(SUBJ_KEY+'_'+userId)||'[]');}catch{return[];}}
+function saveSubjectsLocal(userId,s){localStorage.setItem(SUBJ_KEY+'_'+userId,JSON.stringify(s));}
 
 function Subjects({sessions=[],user}){
   const uid=user?.id||'guest';
+  const useSupa=!!_sb&&!!user?.id;
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
   const[manageOpen,setManageOpen]=useState(false);
-  const[subjs,setSubjsRaw]=useState(()=>loadSubjects(uid));
+  const[subjs,setSubjsRaw]=useState(()=>useSupa?[]:loadSubjectsLocal(uid));
   const[name,setName]=useState('');
   const[col,setCol]=useState(SUBJ_COLORS[0]);
 
-  const setSubjs=s=>{const next=typeof s==='function'?s(subjs):s;setSubjsRaw(next);saveSubjects(uid,next);};
+  // Load from Supabase on mount
+  useEffect(()=>{
+    if(!useSupa)return;
+    sbAPI.loadSubjects(uid).then(data=>{
+      if(data)setSubjsRaw(data.map(s=>({id:s.id,name:s.name,color:s.color})));
+    }).catch(()=>{});
+  },[uid,useSupa]);
+
+  const setSubjs=s=>{
+    const next=typeof s==='function'?s(subjs):s;
+    setSubjsRaw(next);
+    if(!useSupa)saveSubjectsLocal(uid,next);
+  };
 
   const sc=SCOPES.find(s=>s.id===scope);
   const cutoff=Date.now()-sc.days*86400000;
