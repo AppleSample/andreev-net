@@ -879,12 +879,16 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
                   onKeyDown={e=>{if(e.key==='Enter'&&timerCustom.trim()&&onStart)onStart(timerCustom.trim());}}/>
               </div>
               <div style={{borderTop:'1px solid var(--v1-rule)',paddingTop:12}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:pomOn?10:0}}>
-                  <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',flex:1}}>pomodoro</span>
-                  <button onClick={()=>setPomOn(p=>!p)} style={{...Btn.sm,fontSize:9,padding:'2px 10px',background:pomOn?'rgba(79,123,255,0.15)':'transparent',borderColor:pomOn?'var(--v1-accent)':'var(--v1-rule-strong)',color:pomOn?'var(--v1-accent)':'var(--v1-fg-2)'}}>{pomOn?'● on':'○ off'}</button>
-                </div>
+                <button onClick={()=>setPomOn(p=>!p)} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:pomOn?'rgba(79,123,255,0.10)':'var(--v1-bg-elev)',border:`1px solid ${pomOn?'var(--v1-accent)':'var(--v1-rule-strong)'}`,cursor:'pointer',transition:'all 100ms',marginBottom:pomOn?10:0}}>
+                  <span style={{fontSize:16,lineHeight:1}}>{pomOn?'⏲':'⏱'}</span>
+                  <div style={{textAlign:'left',flex:1}}>
+                    <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:pomOn?'var(--v1-accent)':'var(--v1-fg)',letterSpacing:'0.08em',fontWeight:pomOn?600:400}}>POMODORO</div>
+                    <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',marginTop:2}}>{pomOn?`${pomWorkDraft}min work · ${pomBreakDraft}min break`:'timed intervals with breaks'}</div>
+                  </div>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:pomOn?'var(--v1-accent)':'var(--v1-fg-muted)',padding:'3px 8px',border:`1px solid ${pomOn?'var(--v1-accent)':'var(--v1-rule)'}`,background:pomOn?'rgba(79,123,255,0.15)':'transparent'}}>{pomOn?'ON':'OFF'}</span>
+                </button>
                 {pomOn&&(
-                  <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
+                  <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',padding:'8px 14px',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-accent)',borderTop:'none'}}>
                     <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.12em',textTransform:'uppercase'}}>work</span>
                     <input value={pomWorkDraft} onChange={e=>setPomWorkDraft(e.target.value.replace(/\D/,''))} style={{width:44,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'4px 6px',textAlign:'center',outline:'none'}}/>
                     <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>min</span>
