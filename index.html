@@ -1039,7 +1039,7 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
   const addTodo=()=>{
     const title=newTitle.trim();if(!title)return;
     const id=`usr_${Date.now()}`;
-    const subj=newSubj?D.subjects.find(s=>s.name===newSubj):null;
+    const subj=newSubj?subjects.find(s=>s.name===newSubj):null;
     setExtras(a=>[...a,{id,day:sel,title,subject:subj?.name||null,color:subj?.color||'#5C6776',priority:newPrio,done:false}]);
     setNewTitle('');
   };
