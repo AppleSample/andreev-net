@@ -1017,7 +1017,7 @@ function Log({sessions,filterSubjects,filterMinProd}){
 }
 
 /* ── CALENDAR ── */
-function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onClose,firstDow:firstDowProp,monthLabel}){
+function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onClose,firstDow:firstDowProp,monthLabel,subjects=[]}){
   const[newTitle,setNewTitle]=useState('');
   const[newPrio,setNewPrio]=useState('med');
   const[newSubj,setNewSubj]=useState(null);
