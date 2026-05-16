@@ -1885,104 +1885,130 @@ function Friend({user}){
 }
 
 /* ── SEARCH PANEL ── */
+const CMD_NAV=[
+  {id:'dashboard', label:'home',    icon:'⌂', desc:'go to home dashboard',       kbd:'1'},
+  {id:'timer',     label:'session', icon:'⏱', desc:'start or view timer',        kbd:'2'},
+  {id:'calendar',  label:'cal',     icon:'📅', desc:'open calendar',             kbd:'3'},
+  {id:'leader',    label:'rank',    icon:'⚡', desc:'leaderboard & rank chart',   kbd:'4'},
+  {id:'heatmap',   label:'hours',   icon:'◼', desc:'hours heatmap & analytics', kbd:'5'},
+  {id:'subjects',  label:'subj',    icon:'◈', desc:'manage subjects',           kbd:'6'},
+  {id:'log',       label:'log',     icon:'≡', desc:'session log',              kbd:'7'},
+  {id:'friend',    label:'net',     icon:'◉', desc:'friends & network',        kbd:'8'},
+];
+
 function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMinProd,setFilterMinProd,onNav}){
   const[query,setQuery]=useState('');
-  const[localSubjs,setLocalSubjs]=useState(filterSubjects||[]);
-  const[localProd,setLocalProd]=useState(filterMinProd||0);
+  const[sel,setSel]=useState(0);
   const inputRef=useRef(null);
-  const allSubjs=[...new Set(subjects.map(s=>s.subject))].filter(Boolean);
-  const subjColorMap=Object.fromEntries(subjects.filter(s=>s.subject&&s.color).map(s=>[s.subject,s.color]));
-  const toggleSubj=s=>setLocalSubjs(a=>a.includes(s)?a.filter(x=>x!==s):[...a,s]);
-  const hasFilters=localSubjs.length>0||localProd>0;
 
-  // live search results across sessions
   const q=query.trim().toLowerCase();
-  const results=q.length>0?subjects.filter(s=>
+
+  const navItems=CMD_NAV.filter(c=>
+    !q||c.label.includes(q)||c.desc.includes(q)||c.id.includes(q)||c.kbd===q
+  );
+
+  const sessionMatches=q.length>1?subjects.filter(s=>
     s.subject?.toLowerCase().includes(q)||
     s.note?.toLowerCase().includes(q)||
-    s.day?.toLowerCase().includes(q)||
-    s.duration?.toLowerCase().includes(q)
-  ).slice(0,8):[];
+    s.day?.toLowerCase().includes(q)
+  ).slice(0,5):[];
 
+  const allItems=[
+    ...navItems.map(c=>({type:'nav',...c})),
+    ...sessionMatches.map(s=>({type:'session',...s})),
+  ];
+
+  useEffect(()=>{setSel(0);},[query]);
   useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),30);},[]);
   useEffect(()=>{
-    const h=e=>{if(e.key==='Escape')onClose();};
+    const h=e=>{
+      if(e.key==='Escape'){onClose();return;}
+      if(e.key==='ArrowDown'){setSel(s=>Math.min(s+1,allItems.length-1));e.preventDefault();}
+      if(e.key==='ArrowUp'){setSel(s=>Math.max(s-1,0));e.preventDefault();}
+      if(e.key==='Enter'&&allItems[sel]){runItem(allItems[sel]);e.preventDefault();}
+    };
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
-  },[]);
+  },[allItems,sel]);
 
-  const applyAndGo=()=>{
-    setFilterSubjects(localSubjs);setFilterMinProd(localProd);
-    onNav&&onNav('log');onClose();
+  const runItem=item=>{
+    if(item.type==='nav'){onNav&&onNav(item.id);onClose();}
+    else if(item.type==='session'){
+      setFilterSubjects(item.subject?[item.subject]:[]);
+      setFilterMinProd(0);
+      onNav&&onNav('log');
+      onClose();
+    }
   };
-  const clear=()=>{setQuery('');setLocalSubjs([]);setLocalProd(0);setFilterSubjects([]);setFilterMinProd(0);};
 
   return(
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
-      <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
-        {/* search input */}
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(6px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:100}}>
+      <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
+        {/* input */}
         <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10}}>
           <span style={{fontSize:14,color:'var(--v1-fg-muted)'}}>⌕</span>
           <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
-            placeholder="search sessions, subjects, notes..."
+            placeholder="go to... or search sessions"
             style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'14px 0',letterSpacing:'0.02em'}}/>
-          {(query||hasFilters)&&<button onClick={clear} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
-          <button onClick={onClose} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>✕ esc</button>
+          <span style={{fontSize:10,color:'var(--v1-fg-muted)',padding:'3px 7px',border:'1px solid var(--v1-rule)',letterSpacing:'0.08em'}}>esc</span>
         </div>
-
-        {/* live results */}
-        {q.length>0&&(
-          <div style={{borderBottom:'1px solid var(--v1-rule)'}}>
-            {results.length===0
-              ? <div style={{padding:'12px 14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no sessions match "{query}"</div>
-              : results.map((s,i)=>{
-                  return(
-                    <div key={i} onClick={()=>{setFilterSubjects(s.subject?[s.subject]:[]);setFilterMinProd(0);onNav&&onNav('log');onClose();}}
-                      style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer'}}
-                      onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{width:4,height:16,background:s.color||'var(--v1-fg-muted)',display:'block'}}/>
-                      <div>
-                        <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject}</span>
-                        {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
-                      </div>
-                      <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
-                      <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
-                    </div>
-                  );
-                })
-            }
-          </div>
-        )}
-
-        {/* narrow by subject */}
-        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>narrow by subject</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-            {allSubjs.map(s=>{
-              const color=subjColorMap[s]||'var(--v1-fg-muted)';
-              const on=localSubjs.includes(s);
-              return<button key={s} onClick={()=>toggleSubj(s)} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',fontSize:10,fontFamily:'var(--v1-mono)',background:on?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${on?color:'var(--v1-rule-strong)'}`,color:on?'var(--v1-fg)':'var(--v1-fg-2)',cursor:'pointer',transition:'all 80ms'}}>
-                <span style={{width:5,height:5,background:color,flexShrink:0}}/>{s}
-              </button>;
-            })}
-          </div>
+        {/* results */}
+        <div style={{maxHeight:360,overflowY:'auto'}}>
+          {allItems.length===0&&q.length>0&&(
+            <div style={{padding:'14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no results for "{query}"</div>
+          )}
+          {navItems.length>0&&(
+            <div>
+              <div style={{padding:'8px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>navigate</div>
+              {navItems.map((c,i)=>{const idx=i;const active=sel===idx;return(
+                <div key={c.id} onMouseEnter={()=>setSel(idx)} onClick={()=>runItem({type:'nav',...c})}
+                  style={{display:'grid',gridTemplateColumns:'36px 1fr auto',alignItems:'center',gap:10,padding:'8px 14px',background:active?'rgba(79,123,255,0.10)':'transparent',cursor:'pointer',borderLeft:`3px solid ${active?'var(--v1-accent)':'transparent'}`}}>
+                  <span style={{fontSize:15,textAlign:'center',color:active?'var(--v1-accent)':'var(--v1-fg-muted)'}}>{c.icon}</span>
+                  <div>
+                    <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)'}}>{c.label}</span>
+                    <span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:10}}>{c.desc}</span>
+                  </div>
+                  <span style={{fontSize:10,color:'var(--v1-fg-muted)',border:'1px solid var(--v1-rule)',padding:'1px 6px',letterSpacing:'0.08em'}}>{c.kbd}</span>
+                </div>
+              );})}
+            </div>
+          )}
+          {sessionMatches.length>0&&(
+            <div>
+              <div style={{padding:'8px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',borderTop:'1px solid var(--v1-rule)'}}>sessions</div>
+              {sessionMatches.map((s,i)=>{const idx=navItems.length+i;const active=sel===idx;return(
+                <div key={i} onMouseEnter={()=>setSel(idx)} onClick={()=>runItem({type:'session',...s})}
+                  style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',background:active?'rgba(79,123,255,0.10)':'transparent',cursor:'pointer',borderLeft:`3px solid ${active?'var(--v1-accent)':'transparent'}`}}>
+                  <span style={{width:4,height:16,background:s.color||'var(--v1-fg-muted)',display:'block'}}/>
+                  <div>
+                    <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)'}}>{s.subject}</span>
+                    {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
+                  </div>
+                  <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
+                  <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
+                </div>
+              );})}
+            </div>
+          )}
+          {!q&&(
+            <div>
+              <div style={{padding:'8px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>navigate</div>
+              {CMD_NAV.map((c,i)=>{const active=sel===i;return(
+                <div key={c.id} onMouseEnter={()=>setSel(i)} onClick={()=>runItem({type:'nav',...c})}
+                  style={{display:'grid',gridTemplateColumns:'36px 1fr auto',alignItems:'center',gap:10,padding:'8px 14px',background:active?'rgba(79,123,255,0.10)':'transparent',cursor:'pointer',borderLeft:`3px solid ${active?'var(--v1-accent)':'transparent'}`}}>
+                  <span style={{fontSize:15,textAlign:'center',color:active?'var(--v1-accent)':'var(--v1-fg-muted)'}}>{c.icon}</span>
+                  <div>
+                    <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)'}}>{c.label}</span>
+                    <span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:10}}>{c.desc}</span>
+                  </div>
+                  <span style={{fontSize:10,color:'var(--v1-fg-muted)',border:'1px solid var(--v1-rule)',padding:'1px 6px',letterSpacing:'0.08em'}}>{c.kbd}</span>
+                </div>
+              );})}
+            </div>
+          )}
         </div>
-
-        {/* narrow by productivity */}
-        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>min productivity</div>
-          <div style={{display:'flex',gap:5}}>
-            {[[0,'any'],[3,'≥ 3'],[4,'≥ 4'],[5,'5 only']].map(([v,label])=>(
-              <button key={v} onClick={()=>setLocalProd(v)} style={{flex:1,padding:'4px 0',fontSize:10,fontFamily:'var(--v1-mono)',background:localProd===v?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${localProd===v?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:localProd===v?'var(--v1-accent)':'var(--v1-fg-2)',cursor:'pointer'}}>{label}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* apply */}
-        <div style={{padding:'8px 14px',display:'flex',justifyContent:'flex-end'}}>
-          <button onClick={applyAndGo} style={{...Btn.sm,background:hasFilters?'var(--v1-accent)':'transparent',color:hasFilters?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:hasFilters?'var(--v1-accent)':'var(--v1-rule)',padding:'4px 14px'}}>
-            {hasFilters?'apply → log':'view log →'}
-          </button>
+        {/* footer hint */}
+        <div style={{padding:'6px 14px',borderTop:'1px solid var(--v1-rule)',display:'flex',gap:14,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em'}}>
+          <span>↑↓ navigate</span><span>↵ select</span><span>esc close</span>
         </div>
       </div>
     </div>
