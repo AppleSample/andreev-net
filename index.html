@@ -1937,8 +1937,12 @@ function Shell({user,onLogout}){
 }
 
 function App(){
-  const[user,setUser]=useState(()=>auth.getUser());
-  const handleLogout=()=>{auth.signOut();setUser(null);};
+  const[user,setUser]=useState(()=>localAuth.getSession());
+  const handleLogout=()=>{
+    localAuth.clearSession();
+    if(window.netlifyIdentity){try{netlifyIdentity.logout();}catch(e){}}
+    setUser(null);
+  };
   if(!user) return <AuthScreen onAuth={setUser}/>;
   return <Shell user={user} onLogout={handleLogout}/>;
 }
