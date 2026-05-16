@@ -1032,7 +1032,6 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
       <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:600,maxHeight:'80vh',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 32px 80px rgba(0,0,0,0.7)',overflow:'hidden'}}>
         {/* Modal header */}
         <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',flexShrink:0}}>
-          <span style={{color:'var(--v1-accent)'}}>◆</span>
           <div>
             <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{DOWL[dow]} · {monthLabel||D.today.month}</div>
             <div style={{fontFamily:'var(--v1-mono)',fontSize:32,lineHeight:1,letterSpacing:'-0.04em',color:sel===today?'var(--v1-accent)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums'}}>{String(sel).padStart(2,'0')}</div>
