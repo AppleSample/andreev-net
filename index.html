@@ -1921,12 +1921,13 @@ function Shell({user,onLogout}){
   const[filterMinProd,setFilterMinProd]=useState(0);
   const tick=useTick(1000);
 
-  // Load sessions from Supabase on mount
+  const[subjects,setSubjects]=useState([]);
+
+  // Load sessions + subjects from Supabase on mount
   useEffect(()=>{
     if(!user?.id)return;
-    sbAPI.loadSessions(user.id).then(data=>{
-      if(data.length>0)setSessions(data);
-    });
+    sbAPI.loadSessions(user.id).then(data=>{if(data.length>0)setSessions(data);});
+    sbAPI.loadSubjects(user.id).then(data=>setSubjects(data));
   },[user?.id]);
 
   // ⌘K shortcut
