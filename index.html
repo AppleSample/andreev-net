@@ -1539,73 +1539,106 @@ function Subjects({sessions=[],user}){
 
 /* ── NETWORK ── */
 const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
-/* Friend requests stored per-user in localStorage:
-   andreev_frienddata_<userId> = { friends:[{id,name,email,color}], requests:[{from,fromName,fromEmail,sentAt}] }
-*/
+
+/* localStorage helpers for when Supabase is not configured */
 function getFriendData(uid){try{return JSON.parse(localStorage.getItem('andreev_fd_'+uid)||'{"friends":[],"requests":[]}')}catch{return{friends:[],requests:[]};}}
 function setFriendData(uid,d){localStorage.setItem('andreev_fd_'+uid,JSON.stringify(d));}
 
 function Friend({user}){
   const uid=user?.id;
-  const[data,setDataRaw]=useState(()=>getFriendData(uid));
+  const useSupa=!!_sb;
+
+  // ── local state ──
+  const[localData,setLocalDataRaw]=useState(()=>getFriendData(uid));
+  const[supaFriends,setSupaFriends]=useState([]);
+  const[supaRequests,setSupaRequests]=useState([]);
   const[query,setQuery]=useState('');
-  const[searchResult,setSearchResult]=useState(null); // null | {found: user} | {notFound: name}
+  const[searchResults,setSearchResults]=useState([]); // array of {id,name} from Supabase
+  const[searchResult,setSearchResult]=useState(null); // {sent,notFound,found} for local flow
   const[error,setError]=useState('');
   const[searching,setSearching]=useState(false);
   const inputRef=useRef(null);
 
-  const setData=d=>{setDataRaw(d);setFriendData(uid,d);};
+  const setLocalData=d=>{setLocalDataRaw(d);setFriendData(uid,d);};
 
-  // reload when user switches account
-  useEffect(()=>{setDataRaw(getFriendData(uid));},[uid]);
+  // ── load Supabase data on mount ──
+  useEffect(()=>{
+    if(!useSupa||!uid)return;
+    sbAPI.getFriends(uid).then(setSupaFriends).catch(()=>{});
+    sbAPI.getPendingRequests(uid).then(setSupaRequests).catch(()=>{});
+  },[uid,useSupa]);
 
-  // incoming requests for this user (sent by others)
-  const incoming=data.requests||[];
-  const friends=data.friends||[];
+  // ── reload local data when user changes ──
+  useEffect(()=>{if(!useSupa)setLocalDataRaw(getFriendData(uid));},[uid,useSupa]);
 
-  const searchUser=()=>{
+  const incoming=useSupa?supaRequests:(localData.requests||[]);
+  const friends=useSupa?supaFriends:(localData.friends||[]);
+
+  // ── SUPABASE search ──
+  const searchSupa=async()=>{
+    const q=query.trim();
+    if(!q){setError('enter a name to search');return;}
+    setSearching(true);setSearchResults([]);setError('');
+    const results=await sbAPI.searchProfiles(q,uid);
+    setSearching(false);
+    if(results.length===0){setError(`no users found for "${q}" — they need to sign up first`);return;}
+    setSearchResults(results);
+  };
+
+  const sendSupaRequest=async(target)=>{
+    setError('');
+    const res=await sbAPI.sendFriendRequest(uid,target.id);
+    if(res.error){setError(res.error);return;}
+    setSearchResults([]);setQuery('');
+    setError('');
+    // show sent confirmation
+    setSearchResult({sent:target.name});
+  };
+
+  const acceptSupaRequest=async(req)=>{
+    await sbAPI.acceptRequest(req.id,uid,req.from);
+    setSupaRequests(r=>r.filter(x=>x.id!==req.id));
+    // reload friends
+    sbAPI.getFriends(uid).then(setSupaFriends);
+  };
+
+  const declineSupaRequest=async(req)=>{
+    await sbAPI.declineRequest(req.id);
+    setSupaRequests(r=>r.filter(x=>x.id!==req.id));
+  };
+
+  // ── LOCAL search ──
+  const searchLocal=()=>{
     const q=query.trim().toLowerCase();
     if(!q){setError('enter a name or email');return;}
     const allUsers=localAuth._users();
     const found=allUsers.find(u=>
-      u.name.toLowerCase()===q||
-      u.email.toLowerCase()===q||
-      u.name.toLowerCase().includes(q)
+      (u.name.toLowerCase()===q||u.email.toLowerCase()===q||u.name.toLowerCase().includes(q))
+      &&u.id!==uid
     );
-    if(!found||found.id===uid){
-      setSearchResult({notFound:query.trim()});
-      setError('');
-      return;
+    if(!found){
+      setSearchResult({notFound:query.trim()});setError('');return;
     }
-    if(friends.find(f=>f.id===found.id)){setError('already friends');return;}
-    // check if request already sent (stored in recipient's data)
+    const lf=localData.friends||[];
+    if(lf.find(f=>f.id===found.id)){setError('already friends');return;}
     const recipData=getFriendData(found.id);
     if(recipData.requests?.find(r=>r.from===uid)){setError('request already sent');return;}
     setSearchResult({found});setError('');
   };
 
-  const sendRequest=foundUser=>{
-    // write request into recipient's friend data
+  const sendLocalRequest=foundUser=>{
     const recipData=getFriendData(foundUser.id);
     const req={from:uid,fromName:user.name,fromEmail:user.email,sentAt:Date.now()};
     recipData.requests=[...(recipData.requests||[]).filter(r=>r.from!==uid),req];
     setFriendData(foundUser.id,recipData);
-    setSearchResult(null);setQuery('');
-    setError('');
-    // show confirmation
-    setSearchResult({sent:foundUser.name});
+    setSearchResult({sent:foundUser.name});setQuery('');setError('');
   };
 
-  const acceptRequest=req=>{
-    const sender=localAuth._users().find(u=>u.id===req.from);
+  const acceptLocalRequest=req=>{
     const color=FRIEND_COLORS[friends.length%FRIEND_COLORS.length];
-    // add to my friends
-    const myNext={
-      friends:[...friends,{id:req.from,name:req.fromName,email:req.fromEmail,color}],
-      requests:incoming.filter(r=>r.from!==req.from),
-    };
-    setData(myNext);
-    // add me to their friends
+    const myNext={friends:[...(localData.friends||[]),{id:req.from,name:req.fromName,email:req.fromEmail,color}],requests:(localData.requests||[]).filter(r=>r.from!==req.from)};
+    setLocalData(myNext);
+    const sender=localAuth._users().find(u=>u.id===req.from);
     if(sender){
       const theirData=getFriendData(sender.id);
       const myColor=FRIEND_COLORS[(theirData.friends||[]).length%FRIEND_COLORS.length];
@@ -1614,13 +1647,8 @@ function Friend({user}){
     }
   };
 
-  const declineRequest=req=>{
-    setData({...data,requests:incoming.filter(r=>r.from!==req.from)});
-  };
-
-  const removeFriend=fid=>{
-    setData({...data,friends:friends.filter(f=>f.id!==fid)});
-  };
+  const declineLocalRequest=req=>setLocalData({...localData,requests:(localData.requests||[]).filter(r=>r.from!==req.from)});
+  const removeLocalFriend=fid=>setLocalData({...localData,friends:(localData.friends||[]).filter(f=>f.id!==fid)});
 
   const fieldStyle={flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 10px',outline:'none'};
 
@@ -1629,12 +1657,12 @@ function Friend({user}){
       {/* pending requests */}
       {incoming.length>0&&(
         <Block label="network.requests" meta={`${incoming.length} pending`}>
-          {incoming.map(req=>(
-            <div key={req.from} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:'1px solid var(--v1-rule)'}}>
-              <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{req.fromName} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>({req.fromEmail})</span> wants to connect</span>
-              <button onClick={()=>acceptRequest(req)}
+          {incoming.map((req,i)=>(
+            <div key={req.id||req.from} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<incoming.length-1?'1px solid var(--v1-rule)':'none'}}>
+              <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{req.fromName||req.from} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{req.fromEmail?`(${req.fromEmail})`:''}</span> wants to connect</span>
+              <button onClick={()=>useSupa?acceptSupaRequest(req):acceptLocalRequest(req)}
                 style={{...Btn.sm,background:'var(--v1-up)',color:'var(--v1-bg)',borderColor:'var(--v1-up)',padding:'4px 12px',fontWeight:600}}>accept</button>
-              <button onClick={()=>declineRequest(req)}
+              <button onClick={()=>useSupa?declineSupaRequest(req):declineLocalRequest(req)}
                 style={{...Btn.sm,padding:'4px 10px'}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>decline</button>
@@ -1644,42 +1672,40 @@ function Friend({user}){
       )}
 
       {/* add friend */}
-      <Block label="network.add" meta="find by name or email">
+      <Block label="network.add" meta={useSupa?"find by name":"find by name or email"}>
+        {!useSupa&&<div style={{padding:'6px 0 10px',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>note: friends must have an account on this device · set up Supabase for cross-device search</div>}
         <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12}}>
-          <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);setSearchResult(null);setError('');}}
-            placeholder="search by name or email address"
+          <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);setSearchResults([]);setSearchResult(null);setError('');}}
+            placeholder={useSupa?"search by name…":"search by name or email…"}
             style={fieldStyle}
             onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
             onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
-            onKeyDown={e=>{if(e.key==='Enter')searchUser();}}
+            onKeyDown={e=>{if(e.key==='Enter')useSupa?searchSupa():searchLocal();}}
           />
-          <button onClick={searchUser}
-            style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',padding:'8px 16px',flexShrink:0,fontWeight:600}}>
-            search →
+          <button onClick={useSupa?searchSupa:searchLocal} disabled={searching}
+            style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',padding:'8px 16px',flexShrink:0,fontWeight:600,opacity:searching?0.7:1}}>
+            {searching?'…':'search →'}
           </button>
         </div>
 
         {error&&<div style={{fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)',marginBottom:8}}>✕ {error}</div>}
 
-        {searchResult?.sent&&(
-          <div style={{padding:'10px 14px',background:'rgba(107,216,154,0.08)',border:'1px solid var(--v1-up)',fontSize:11,color:'var(--v1-up)',fontFamily:'var(--v1-mono)'}}>
-            ✓ friend request sent to {searchResult.sent}
-          </div>
-        )}
+        {searchResult?.sent&&<div style={{padding:'10px 14px',background:'rgba(107,216,154,0.08)',border:'1px solid var(--v1-up)',fontSize:11,color:'var(--v1-up)',fontFamily:'var(--v1-mono)'}}>✓ friend request sent to {searchResult.sent}</div>}
+        {searchResult?.notFound&&<div style={{padding:'10px 14px',background:'rgba(229,72,77,0.07)',border:'1px solid var(--v1-down)',fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)'}}>✕ no user found for "{searchResult.notFound}" — they need to create an account on this device first</div>}
+        {searchResult?.found&&<div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'rgba(79,123,255,0.06)',border:'1px solid var(--v1-rule-strong)'}}>
+          <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{searchResult.found.name} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>({searchResult.found.email})</span></span>
+          <button onClick={()=>sendLocalRequest(searchResult.found)} style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600}}>send request →</button>
+        </div>}
 
-        {searchResult?.notFound&&(
-          <div style={{padding:'10px 14px',background:'rgba(229,72,77,0.07)',border:'1px solid var(--v1-down)',fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)'}}>
-            ✕ no user found for "{searchResult.notFound}" — they need to create an account first
-          </div>
-        )}
-
-        {searchResult?.found&&(
-          <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'rgba(79,123,255,0.06)',border:'1px solid var(--v1-rule-strong)'}}>
-            <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{searchResult.found.name} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>({searchResult.found.email})</span></span>
-            <button onClick={()=>sendRequest(searchResult.found)}
-              style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600}}>
-              send request →
-            </button>
+        {/* Supabase results list */}
+        {searchResults.length>0&&(
+          <div style={{border:'1px solid var(--v1-rule-strong)'}}>
+            {searchResults.map((u,i)=>(
+              <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderBottom:i<searchResults.length-1?'1px solid var(--v1-rule)':'none',background:'rgba(79,123,255,0.04)'}}>
+                <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{u.name}</span>
+                <button onClick={()=>sendSupaRequest(u)} style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600,padding:'4px 12px'}}>add →</button>
+              </div>
+            ))}
           </div>
         )}
       </Block>
@@ -1687,23 +1713,21 @@ function Friend({user}){
       {/* friends list */}
       <Block label="network.members" meta={`${friends.length+1} member${friends.length!==0?'s':''}`}>
         {friends.length===0?(
-          <EmptyState title="no friends yet" hint="search for someone by name or email above to send a request"/>
+          <EmptyState title="no friends yet" hint="search for someone by name above to send a request"/>
         ):(
-          <Tbl cols={['who','email','']} widths={['auto','auto','32px']}>
+          <Tbl cols={['who','']} widths={['auto','32px']}>
             <Row hi>
               <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:'var(--v1-accent)'}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell>
-              <Cell mono dim sm>{user?.email}</Cell>
               <Cell/>
             </Row>
             {friends.map(f=>(
               <Row key={f.id}>
-                <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:f.color}}/>{f.name}</span></Cell>
-                <Cell mono dim sm>{f.email}</Cell>
+                <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:f.color||FRIEND_COLORS[0]}}/>{f.name}</span></Cell>
                 <Cell>
-                  <button onClick={()=>removeFriend(f.id)}
+                  {!useSupa&&<button onClick={()=>removeLocalFriend(f.id)}
                     style={{background:'transparent',border:'none',color:'var(--v1-fg-muted)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'0 4px'}}
                     onMouseEnter={e=>e.currentTarget.style.color='var(--v1-down)'}
-                    onMouseLeave={e=>e.currentTarget.style.color='var(--v1-fg-muted)'}>✕</button>
+                    onMouseLeave={e=>e.currentTarget.style.color='var(--v1-fg-muted)'}>✕</button>}
                 </Cell>
               </Row>
             ))}
