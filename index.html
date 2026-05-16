@@ -2174,23 +2174,12 @@ function App(){
 
   useEffect(()=>{
     if(!_sb){setChecking(false);return;}
-    // safety timeout — never stay on loading screen forever
-    const timeout=setTimeout(()=>setChecking(false),4000);
-    sbAPI.getSession().then(u=>{setUser(u);setChecking(false);clearTimeout(timeout);}).catch(()=>{setChecking(false);clearTimeout(timeout);});
-    let unsub=()=>{};
-    try{
-      const{data:{subscription}}=_sb.auth.onAuthStateChange(async(_ev,session)=>{
-        if(session?.user){
-          try{
-            const{data:p}=await _sb.from('profiles').select('name').eq('id',session.user.id).single();
-            setUser({id:session.user.id,email:session.user.email,name:p?.name||session.user.email.split('@')[0]});
-          }catch{setUser({id:session.user.id,email:session.user.email,name:session.user.email.split('@')[0]});}
-        }else{setUser(null);}
-        setChecking(false);clearTimeout(timeout);
-      });
-      unsub=()=>subscription.unsubscribe();
-    }catch(e){setChecking(false);clearTimeout(timeout);}
-    return()=>{unsub();clearTimeout(timeout);};
+    const timeout=setTimeout(()=>{setChecking(false);},3000);
+    sbAPI.getSession()
+      .then(u=>{setUser(u);})
+      .catch(()=>{})
+      .finally(()=>{clearTimeout(timeout);setChecking(false);});
+    return()=>clearTimeout(timeout);
   },[]);
 
   const handleLogout=async()=>{await sbAPI.signOut();setUser(null);};
