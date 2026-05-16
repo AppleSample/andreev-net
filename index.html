@@ -2476,21 +2476,24 @@ function Shell({user,onLogout}){
       {/* STATUS STRIP — each cell navigates to its related tab */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'1px solid var(--v1-rule)',flexShrink:0,background:'var(--v1-bg-elev)'}}>
         {[
-          {k:'today',  v:fmtHM(todayH),   d:'hours today',              up:todayH>0,    nav:'dashboard'},
-          {k:'streak', v:`${streak}d`,    d:streak>0?'keep going':'start studying', up:streak>0, nav:'dashboard'},
-          {k:'wk',     v:fmtHM(thisWkH), d:`of ${weeklyTarget}h target`, up:thisWkH>0, nav:'heatmap'},
-          {k:'rank',   v:'—',            d:'add friends to rank',       up:false,       nav:'leader'},
-          {k:'peak',   v:peakHour!=null?`${String(peakHour).padStart(2,'0')}h`:'—', d:peakHour!=null?'peak study hour':'no data yet', up:peakHour!=null, nav:'heatmap'},
-          {k:'pace',   v:`${paceVal}%`,  d:`of ${weeklyTarget}h target`, up:paceVal>=75, nav:'heatmap'},
-        ].map((c,i)=>(
-          <div key={c.k} onClick={()=>setScreen(c.nav)} style={{padding:'9px 14px',borderRight:i<5?'1px solid var(--v1-rule)':'none',display:'flex',flexDirection:'column',gap:3,cursor:'pointer',transition:'background 80ms'}}
-            onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
-            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-            <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>{c.k}</span>
-            <span style={{fontSize:17,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:'var(--v1-fg)'}}>{c.v}</span>
-            <span style={{fontSize:10,color:c.up?'var(--v1-up)':'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums'}}>{c.up&&'▲ '}{c.d}</span>
-          </div>
-        ))}
+          {k:'today',  v:fmtHM(todayH),   d:'hours today',              up:todayH>0,    tone:null,   nav:'dashboard'},
+          {k:'streak', v:`${streak}d`,    d:streak>0?'keep going':'start studying', up:streak>0, tone:null, nav:'dashboard'},
+          {k:'wk',     v:fmtHM(thisWkH), d:`of ${weeklyTarget}h target`, up:thisWkH>0, tone:null,   nav:'heatmap'},
+          {k:'rank',   v:myRank?`#${myRank}`:'—', d:myRank?`of ${leaderboard.length}`:'add friends to rank', up:myRank===1&&leaderboard.length>1, tone:null, nav:'leader'},
+          {k:'peak',   v:peakHour!=null?`${String(peakHour).padStart(2,'0')}h`:'—', d:peakHour!=null?'peak study hour':'no data yet', up:peakHour!=null, tone:null, nav:'heatmap'},
+          {k:'pace',   v:`${paceVal}%`,  d:`of ${weeklyTarget}h target`, up:paceVal>=100, tone:paceTone, nav:'heatmap'},
+        ].map((c,i)=>{
+          const vColor=c.tone==='up'?'var(--v1-up)':c.tone==='down'?'var(--v1-down)':'var(--v1-fg)';
+          return(
+            <div key={c.k} onClick={()=>setScreen(c.nav)} style={{padding:'9px 14px',borderRight:i<5?'1px solid var(--v1-rule)':'none',display:'flex',flexDirection:'column',gap:3,cursor:'pointer',transition:'background 80ms'}}
+              onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>{c.k}</span>
+              <span style={{fontSize:17,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:vColor}}>{c.v}</span>
+              <span style={{fontSize:10,color:c.up?'var(--v1-up)':c.tone==='down'?'var(--v1-down)':'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums'}}>{c.up&&'▲ '}{c.d}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* MAIN */}
