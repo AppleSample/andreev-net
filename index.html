@@ -972,7 +972,7 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
 
 /* ── LOG ── */
 function Log({sessions,filterSubjects,filterMinProd}){
-  const all=sessions||D.sessions;
+  const all=sessions||[];
   const list=all.filter(s=>{
     if(filterSubjects&&filterSubjects.length>0&&!filterSubjects.includes(s.subject))return false;
     if(filterMinProd&&filterMinProd>0&&(s.productivity==null||s.productivity<filterMinProd))return false;
