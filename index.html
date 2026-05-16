@@ -1584,15 +1584,12 @@ function DailyHeatmap({sessions}){
     return{date:new Date(date),hours,isFuture,k};
   }));
 
-  // Max hours for color scaling
-  const allHours=Object.values(dayMap);
-  const maxH=allHours.length?Math.max(...allHours,0.5):4;
-
   const cellColor=({hours,isFuture})=>{
     if(isFuture)return'transparent';
     if(hours===0)return'var(--v1-bg-elev-2)';
-    const t=Math.min(1,hours/Math.max(maxH*0.6,2));
-    return`rgba(79,123,255,${(0.22+t*0.78).toFixed(2)})`;
+    // Fixed scale: 3h = full intensity. Each hour is clearly distinct.
+    const t=Math.min(1,hours/3);
+    return`rgba(79,123,255,${(0.25+t*0.75).toFixed(2)})`;
   };
 
   // Month label: show label at first week of each month
