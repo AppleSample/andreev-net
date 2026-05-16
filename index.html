@@ -2099,6 +2099,14 @@ function Shell({user,onLogout}){
   const[filterMinProd,setFilterMinProd]=useState(0);
   const tick=useTick(1000);
 
+  // Load sessions from Supabase on mount
+  useEffect(()=>{
+    if(!_sb||!user?.id)return;
+    sbAPI.loadSessions(user.id).then(data=>{
+      if(data.length)setSessions(data.map(s=>({...s,day:s.day||'',time:s.time||''})));
+    }).catch(()=>{});
+  },[user?.id]);
+
   // ⌘K shortcut
   useEffect(()=>{
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
