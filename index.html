@@ -149,7 +149,7 @@ const sbAPI={
     ]);
     const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
     const seen=new Set();
-    return(stats||[]).filter(s=>{if(seen.has(s.user_id))return false;seen.add(s.user_id);return true;}).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0}));
+    return(stats||[]).filter(s=>{if(seen.has(s.user_id))return false;seen.add(s.user_id);return true;}).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0,updated_at:s.updated_at||null}));
   },
   async removeFriend(uid,friendId){
     await _sb.from('friend_requests').delete().or(`and(from_id.eq.${uid},to_id.eq.${friendId}),and(from_id.eq.${friendId},to_id.eq.${uid})`);
