@@ -829,7 +829,7 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
               <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>subject</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
                 {PRESETS.map(s=>{
-                  const subj=D.subjects.find(x=>x.name===s);
+                  const subj=subjects.find(x=>x.name===s);
                   const color=subj?subj.color:'var(--v1-accent)';
                   const picked=logSubject===s;
                   return(
