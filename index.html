@@ -1228,7 +1228,7 @@ function Calendar({subjects=[]}){
       </div>
 
       {/* Day detail popup */}
-      {sel!==null&&<DayModal sel={sel} today={isCurrentMonth?today:-1} evtsByDay={activeEvtsByDay} todosByDay={activeTodosByDay} ts={ts} setTs={setTs} extras={extras} setExtras={setExtras} onClose={()=>setSel(null)} firstDow={firstDow} monthLabel={monthName.toLowerCase()}/>}
+      {sel!==null&&<DayModal sel={sel} today={isCurrentMonth?today:-1} evtsByDay={activeEvtsByDay} todosByDay={activeTodosByDay} ts={ts} setTs={setTs} extras={extras} setExtras={setExtras} onClose={()=>setSel(null)} firstDow={firstDow} monthLabel={monthName.toLowerCase()} subjects={subjects}/>}
     </div>
   );
 }
