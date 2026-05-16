@@ -2280,12 +2280,29 @@ function Shell({user,onLogout}){
 }
 
 function App(){
-  const[user,setUser]=useState(()=>localAuth.getSession());
+  const[user,setUser]=useState(()=>_sb?null:localAuth.getSession());
+  const[checking,setChecking]=useState(!!_sb);
+
+  // Restore Supabase session on page load
+  useEffect(()=>{
+    if(!_sb){setChecking(false);return;}
+    sbAPI.getSession().then(sess=>{
+      if(sess)setUser(sess);
+      setChecking(false);
+    }).catch(()=>setChecking(false));
+  },[]);
+
   const handleLogout=()=>{
-    localAuth.clearSession();
-    if(window.netlifyIdentity){try{window.netlifyIdentity.logout();}catch(e){}}
+    if(_sb)sbAPI.signOut().catch(()=>{});
+    else localAuth.clearSession();
     setUser(null);
   };
+
+  if(checking)return(
+    <div className="v1" style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em'}}>
+      loading…
+    </div>
+  );
   if(!user) return <AuthScreen onAuth={setUser}/>;
   return <Shell user={user} onLogout={handleLogout}/>;
 }
