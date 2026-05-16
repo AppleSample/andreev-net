@@ -1429,105 +1429,127 @@ function Friend(){
 }
 
 /* ── SEARCH PANEL ── */
-function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMinProd,setFilterMinProd,onNav}){
+function CommandPalette({sessions,onClose,onNav,onStartSession}){
   const[query,setQuery]=useState('');
-  const[localSubjs,setLocalSubjs]=useState(filterSubjects||[]);
-  const[localProd,setLocalProd]=useState(filterMinProd||0);
+  const[sel,setSel]=useState(0);
   const inputRef=useRef(null);
-  const allSubjs=[...new Set([...D.subjects.map(s=>s.name),...subjects.map(s=>s.subject)])].filter(Boolean);
-  const toggleSubj=s=>setLocalSubjs(a=>a.includes(s)?a.filter(x=>x!==s):[...a,s]);
-  const hasFilters=localSubjs.length>0||localProd>0;
-
-  // live search results across sessions
   const q=query.trim().toLowerCase();
-  const results=q.length>0?subjects.filter(s=>
+
+  const COMMANDS=[
+    {icon:'▶',label:'start new session',      hint:'begin tracking study time',   tag:'session', action:()=>{onClose();onStartSession();}},
+    {icon:'＋',label:'add a subject',           hint:'create a subject to track',   tag:'subj',    action:()=>{onNav('subjects');onClose();}},
+    {icon:'◈',label:'add a friend',            hint:'invite someone to compete',   tag:'net',     action:()=>{onNav('friend');onClose();}},
+    {icon:'◎',label:'view leaderboard',        hint:'see your rank vs friends',    tag:'rank',    action:()=>{onNav('leader');onClose();}},
+    {icon:'▦',label:'view heatmap',            hint:'your hours over time',        tag:'hours',   action:()=>{onNav('heatmap');onClose();}},
+    {icon:'◫',label:'view calendar',           hint:'schedule events & todos',     tag:'cal',     action:()=>{onNav('calendar');onClose();}},
+    {icon:'≡',label:'view session log',        hint:'browse all past sessions',    tag:'log',     action:()=>{onNav('log');onClose();}},
+    {icon:'⌂',label:'go to home',              hint:'dashboard overview',          tag:'home',    action:()=>{onNav('dashboard');onClose();}},
+  ];
+
+  // filter commands by query
+  const matchCmds=q?COMMANDS.filter(c=>c.label.includes(q)||c.hint.includes(q)||c.tag.includes(q)):COMMANDS;
+
+  // filter sessions by query
+  const matchSessions=q?sessions.filter(s=>
     s.subject?.toLowerCase().includes(q)||
     s.note?.toLowerCase().includes(q)||
-    s.day?.toLowerCase().includes(q)||
     s.duration?.toLowerCase().includes(q)
-  ).slice(0,8):[];
+  ).slice(0,5):[];
 
+  const totalItems=matchCmds.length+matchSessions.length;
+
+  useEffect(()=>{setSel(0);},[query]);
   useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),30);},[]);
   useEffect(()=>{
-    const h=e=>{if(e.key==='Escape')onClose();};
+    const h=e=>{
+      if(e.key==='Escape'){onClose();return;}
+      if(e.key==='ArrowDown'){e.preventDefault();setSel(s=>Math.min(s+1,totalItems-1));}
+      if(e.key==='ArrowUp'){e.preventDefault();setSel(s=>Math.max(s-1,0));}
+      if(e.key==='Enter'){
+        e.preventDefault();
+        if(sel<matchCmds.length){matchCmds[sel]?.action();}
+        else{const s=matchSessions[sel-matchCmds.length];if(s){onNav('log');onClose();}}
+      }
+    };
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
-  },[]);
+  },[sel,totalItems,matchCmds,matchSessions,onClose,onNav]);
 
-  const applyAndGo=()=>{
-    setFilterSubjects(localSubjs);setFilterMinProd(localProd);
-    onNav&&onNav('log');onClose();
+  const Row=({icon,label,hint,tag,idx,onClick})=>{
+    const active=sel===idx;
+    return(
+      <div onClick={onClick} onMouseEnter={()=>setSel(idx)}
+        style={{display:'grid',gridTemplateColumns:'28px 1fr auto',alignItems:'center',gap:6,padding:'8px 14px',cursor:'pointer',background:active?'rgba(79,123,255,0.09)':'transparent',borderLeft:`2px solid ${active?'var(--v1-accent)':'transparent'}`}}>
+        <span style={{fontSize:13,color:active?'var(--v1-accent)':'var(--v1-fg-muted)',textAlign:'center'}}>{icon}</span>
+        <div style={{display:'flex',flexDirection:'column',gap:1}}>
+          <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)',letterSpacing:'0.02em'}}>{label}</span>
+          {hint&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',letterSpacing:'0.02em'}}>{hint}</span>}
+        </div>
+        <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em',textTransform:'uppercase',border:'1px solid var(--v1-rule)',padding:'2px 6px'}}>{tag}</span>
+      </div>
+    );
   };
-  const clear=()=>{setQuery('');setLocalSubjs([]);setLocalProd(0);setFilterSubjects([]);setFilterMinProd(0);};
 
   return(
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
-      <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
-        {/* search input */}
-        <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10}}>
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(5px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
+      <div style={{width:540,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)',boxShadow:'0 24px 60px rgba(0,0,0,0.6)',maxHeight:'70vh',display:'flex',flexDirection:'column'}}>
+
+        {/* input */}
+        <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10,flexShrink:0}}>
           <span style={{fontSize:14,color:'var(--v1-fg-muted)'}}>⌕</span>
           <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
-            placeholder="search sessions, subjects, notes..."
+            placeholder="search features, navigate, find sessions…"
             style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'14px 0',letterSpacing:'0.02em'}}/>
-          {(query||hasFilters)&&<button onClick={clear} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
-          <button onClick={onClose} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>✕ esc</button>
+          {query&&<button onClick={()=>setQuery('')} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
+          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em',flexShrink:0}}>esc</span>
         </div>
 
-        {/* live results */}
-        {q.length>0&&(
-          <div style={{borderBottom:'1px solid var(--v1-rule)'}}>
-            {results.length===0
-              ? <div style={{padding:'12px 14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no sessions match "{query}"</div>
-              : results.map((s,i)=>{
-                  const subj=D.subjects.find(x=>x.name===s.subject);
-                  return(
-                    <div key={i} onClick={()=>{setFilterSubjects(s.subject?[s.subject]:[]);setFilterMinProd(0);onNav&&onNav('log');onClose();}}
-                      style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer'}}
-                      onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
-                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
-                      <div>
-                        <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject}</span>
-                        {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
-                      </div>
-                      <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
-                      <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
+        <div style={{overflowY:'auto'}}>
+          {/* commands */}
+          {matchCmds.length>0&&(
+            <div>
+              <div style={{padding:'7px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>actions</div>
+              {matchCmds.map((c,i)=><Row key={c.label} icon={c.icon} label={c.label} hint={c.hint} tag={c.tag} idx={i} onClick={c.action}/>)}
+            </div>
+          )}
+
+          {/* session results */}
+          {matchSessions.length>0&&(
+            <div style={{borderTop:'1px solid var(--v1-rule)'}}>
+              <div style={{padding:'7px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>sessions</div>
+              {matchSessions.map((s,i)=>{
+                const subj=D.subjects.find(x=>x.name===s.subject);
+                const idx=matchCmds.length+i;
+                const active=sel===idx;
+                return(
+                  <div key={i} onMouseEnter={()=>setSel(idx)}
+                    onClick={()=>{onNav('log');onClose();}}
+                    style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',cursor:'pointer',background:active?'rgba(79,123,255,0.09)':'transparent',borderLeft:`2px solid ${active?'var(--v1-accent)':'transparent'}`}}>
+                    <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
+                    <div>
+                      <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject||'—'}</span>
+                      {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
                     </div>
-                  );
-                })
-            }
-          </div>
-        )}
+                    <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
+                    <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
-        {/* narrow by subject */}
-        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>narrow by subject</div>
-          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
-            {allSubjs.map(s=>{
-              const subj=D.subjects.find(x=>x.name===s);
-              const color=subj?subj.color:'var(--v1-fg-muted)';
-              const on=localSubjs.includes(s);
-              return<button key={s} onClick={()=>toggleSubj(s)} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',fontSize:10,fontFamily:'var(--v1-mono)',background:on?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${on?color:'var(--v1-rule-strong)'}`,color:on?'var(--v1-fg)':'var(--v1-fg-2)',cursor:'pointer',transition:'all 80ms'}}>
-                <span style={{width:5,height:5,background:color,flexShrink:0}}/>{s}
-              </button>;
-            })}
-          </div>
+          {/* no results */}
+          {q&&matchCmds.length===0&&matchSessions.length===0&&(
+            <div style={{padding:'20px 14px',fontSize:11,color:'var(--v1-fg-muted)',textAlign:'center'}}>no results for "{query}"</div>
+          )}
         </div>
 
-        {/* narrow by productivity */}
-        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>min productivity</div>
-          <div style={{display:'flex',gap:5}}>
-            {[[0,'any'],[3,'≥ 3'],[4,'≥ 4'],[5,'5 only']].map(([v,label])=>(
-              <button key={v} onClick={()=>setLocalProd(v)} style={{flex:1,padding:'4px 0',fontSize:10,fontFamily:'var(--v1-mono)',background:localProd===v?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${localProd===v?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:localProd===v?'var(--v1-accent)':'var(--v1-fg-2)',cursor:'pointer'}}>{label}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* apply */}
-        <div style={{padding:'8px 14px',display:'flex',justifyContent:'flex-end'}}>
-          <button onClick={applyAndGo} style={{...Btn.sm,background:hasFilters?'var(--v1-accent)':'transparent',color:hasFilters?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:hasFilters?'var(--v1-accent)':'var(--v1-rule)',padding:'4px 14px'}}>
-            {hasFilters?'apply → log':'view log →'}
-          </button>
+        {/* footer hint */}
+        <div style={{borderTop:'1px solid var(--v1-rule)',padding:'6px 14px',display:'flex',gap:14,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em',flexShrink:0}}>
+          <span>↑↓ navigate</span>
+          <span>↵ select</span>
+          <span>esc close</span>
+          <span style={{flex:1}}/>
+          <span>⌘K to open</span>
         </div>
       </div>
     </div>
