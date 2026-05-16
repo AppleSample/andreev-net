@@ -193,11 +193,11 @@ const D={
 
 /* ── SCOPE SYSTEM ── */
 const SCOPES=[
-  {id:'1d', label:'1D', n:24,x:i=>String(i).padStart(2,'0'),      unit:'hour'},
-  {id:'7d', label:'7D', n:7, x:i=>['mon','tue','wed','thu','fri','sat','sun'][i],unit:'day'},
-  {id:'30d',label:'30D',n:30,x:i=>`${i+1}`,                       unit:'day'},
-  {id:'90d',label:'90D',n:13,x:i=>`w${i+1}`,                      unit:'week'},
-  {id:'all',label:'ALL',n:12,x:i=>['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][i],unit:'month'},
+  {id:'1d', label:'1D', n:24,days:1,  x:i=>String(i).padStart(2,'0'),      unit:'hour'},
+  {id:'7d', label:'7D', n:7, days:7,  x:i=>['mon','tue','wed','thu','fri','sat','sun'][i],unit:'day'},
+  {id:'30d',label:'30D',n:30,days:30, x:i=>`${i+1}`,                       unit:'day'},
+  {id:'90d',label:'90D',n:13,days:90, x:i=>`w${i+1}`,                      unit:'week'},
+  {id:'all',label:'ALL',n:12,days:365,x:i=>['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][i],unit:'month'},
 ];
 const SCOPE_BASE={'1d':0.18,'7d':3.0,'30d':2.6,'90d':18,'all':76};
 const SUBJ_COLORS=['#4F7BFF','#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A'];
