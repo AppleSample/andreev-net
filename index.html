@@ -2205,12 +2205,12 @@ function Shell({user,onLogout}){
       {/* STATUS STRIP — each cell navigates to its related tab */}
       <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'1px solid var(--v1-rule)',flexShrink:0,background:'var(--v1-bg-elev)'}}>
         {[
-          {k:'today',  v:fmtHM(wkHours/7),           d:'hours today',                    up:wkHours>0, nav:'dashboard'},
-          {k:'streak', v:`${sessions.length>0?1:0}d`, d:sessions.length>0?'keep going':'start studying', up:false, nav:'dashboard'},
-          {k:'wk',     v:fmtHM(wkHours),              d:`of ${weeklyTarget}h target`,     up:wkHours>0, nav:'heatmap'},
-          {k:'rank',   v:'—',                          d:'invite friends to rank',         up:false, nav:'leader'},
-          {k:'peak',   v:'—',                          d:'no data yet',                    up:false, nav:'heatmap'},
-          {k:'pace',   v:`${paceVal}%`,                d:`of ${weeklyTarget}h target`,     up:paceVal>=75, nav:'heatmap'},
+          {k:'today',  v:fmtHM(todayH),   d:'hours today',              up:todayH>0,    nav:'dashboard'},
+          {k:'streak', v:`${streak}d`,    d:streak>0?'keep going':'start studying', up:streak>0, nav:'dashboard'},
+          {k:'wk',     v:fmtHM(thisWkH), d:`of ${weeklyTarget}h target`, up:thisWkH>0, nav:'heatmap'},
+          {k:'rank',   v:'—',            d:'add friends to rank',       up:false,       nav:'leader'},
+          {k:'peak',   v:peakHour!=null?`${String(peakHour).padStart(2,'0')}h`:'—', d:peakHour!=null?'peak study hour':'no data yet', up:peakHour!=null, nav:'heatmap'},
+          {k:'pace',   v:`${paceVal}%`,  d:`of ${weeklyTarget}h target`, up:paceVal>=75, nav:'heatmap'},
         ].map((c,i)=>(
           <div key={c.k} onClick={()=>setScreen(c.nav)} style={{padding:'9px 14px',borderRight:i<5?'1px solid var(--v1-rule)':'none',display:'flex',flexDirection:'column',gap:3,cursor:'pointer',transition:'background 80ms'}}
             onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
