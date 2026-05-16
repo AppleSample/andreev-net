@@ -1207,10 +1207,11 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
   const todayDow=(_now.getDay()+6)%7; // 0=Mon
   const wkMonDate=_now.getDate()-todayDow;
   const wkDays=Array.from({length:7},(_,i)=>wkMonDate+i).filter(d=>d>=1&&d<=daysInMonth);
-  const wkEvts=wkDays.flatMap(d=>evtsByDay[d]||[]);
-  const wkTodos=wkDays.flatMap(d=>todosByDay[d]||[]);
-  const wkDone=wkTodos.filter(t=>ts[t.id]??t.done).length;
-  const wkHigh=wkTodos.filter(t=>t.priority==='high'&&!(ts[t.id]??t.done)).length;
+  const wkDayStrs=wkDays.map(d=>`${calMonth.year}-${String(calMonth.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  const wkEvts=wkDayStrs.flatMap(d=>evtsByDay[d]||[]);
+  const wkTodos=wkDayStrs.flatMap(d=>todosByDay[d]||[]);
+  const wkDone=wkTodos.filter(t=>todoStates[t.id]).length;
+  const wkHigh=wkTodos.filter(t=>t.priority==='high'&&!todoStates[t.id]).length;
   const wkMonStr=`mon ${Math.max(1,wkMonDate)}`;
   const wkSunStr=`sun ${Math.min(daysInMonth,wkMonDate+6)}`;
   const wkMeta=`this week · ${wkMonStr} — ${wkSunStr} ${_now.toLocaleDateString('en-GB',{month:'short'}).toLowerCase()}`;
