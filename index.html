@@ -69,14 +69,31 @@ const _sb=(typeof supabase!=='undefined')
   :null;
 
 const sbAPI={
-  async sendOTP(email){const{error}=await _sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});return error?{error:error.message}:{ok:true};},
-  async verifyOTP(email,token,name){
-    const{data,error}=await _sb.auth.verifyOtp({email,token,type:'email'});
+  async signUp(email,password,name){
+    const{data,error}=await _sb.auth.signUp({email,password,options:{data:{name}}});
+    if(error)return{error:error.message};
+    // if session is null, email confirmation is required
+    if(!data.session)return{ok:true,needsVerification:true};
+    // auto-confirmed (e.g. dev mode) — create profile and return user
+    const u=data.user;
+    await _sb.from('profiles').insert({id:u.id,name:name||u.email.split('@')[0]});
+    return{ok:true,needsVerification:false,user:{id:u.id,email:u.email,name:name||u.email.split('@')[0]}};
+  },
+  async verifyEmail(email,token){
+    const{data,error}=await _sb.auth.verifyOtp({email,token,type:'signup'});
     if(error)return{error:error.message};
     const u=data.user;
+    const nm=u.user_metadata?.name||u.email.split('@')[0];
     const{data:ex}=await _sb.from('profiles').select('name').eq('id',u.id).single();
-    if(!ex){const dn=name||(u.user_metadata?.name)||u.email.split('@')[0];await _sb.from('profiles').insert({id:u.id,name:dn});return{user:{id:u.id,email:u.email,name:dn}};}
-    return{user:{id:u.id,email:u.email,name:ex.name}};
+    if(!ex)await _sb.from('profiles').insert({id:u.id,name:nm});
+    return{user:{id:u.id,email:u.email,name:ex?.name||nm}};
+  },
+  async signIn(email,password){
+    const{data,error}=await _sb.auth.signInWithPassword({email,password});
+    if(error)return{error:error.message};
+    const u=data.user;
+    const{data:p}=await _sb.from('profiles').select('name').eq('id',u.id).single();
+    return{user:{id:u.id,email:u.email,name:p?.name||u.email.split('@')[0]}};
   },
   async getSession(){
     const{data}=await _sb.auth.getSession();
