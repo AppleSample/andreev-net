@@ -44,7 +44,11 @@ const{useState,useEffect,useRef,useMemo,useCallback}=React;
    Local fallback (localStorage) used when Identity not configured
    ══════════════════════════════════════════════════════════════ */
 
-/* ── local fallback (email/password only) ── */
+/* ── local auth (email/password, SHA-256 hashed) ── */
+async function _sha256(str){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 const localAuth={
   _key:'andreev_users', _sessionKey:'andreev_session',
   _users(){try{return JSON.parse(localStorage.getItem(this._key)||'[]');}catch{return[];}},
@@ -52,19 +56,25 @@ const localAuth={
   getSession(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
   saveSession(u){localStorage.setItem(this._sessionKey,JSON.stringify(u));},
   clearSession(){localStorage.removeItem(this._sessionKey);},
-  signUp(name,email,password){
+  async signUp(name,email,password){
     const users=this._users();
     if(users.find(u=>u.email.toLowerCase()===email.toLowerCase())) return{error:'account already exists with this email'};
     if(password.length<6) return{error:'password must be at least 6 characters'};
-    const u={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),password,createdAt:new Date().toISOString()};
+    const hash=await _sha256(password+'::'+email.toLowerCase());
+    const u={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),hash,createdAt:new Date().toISOString()};
     this._save([...users,u]);
     const s={id:u.id,name:u.name,email:u.email};
     this.saveSession(s);return{user:s};
   },
-  signIn(email,password){
+  async signIn(email,password){
     const u=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
     if(!u) return{error:'no account found with that email'};
-    if(u.password!==password) return{error:'incorrect password'};
+    const hash=await _sha256(password+'::'+email.trim().toLowerCase());
+    // support both old plain-text and new hashed passwords
+    const match=u.hash?u.hash===hash:u.password===password;
+    if(!match) return{error:'incorrect password'};
+    // migrate plain-text to hashed on successful sign-in
+    if(!u.hash){const all=this._users();const idx=all.findIndex(x=>x.id===u.id);if(idx>=0){all[idx]={...all[idx],hash,password:undefined};this._save(all);}}
     const s={id:u.id,name:u.name,email:u.email};
     this.saveSession(s);return{user:s};
   },
