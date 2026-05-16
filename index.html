@@ -240,6 +240,15 @@ function userSeries(i,scope){return genSeries(scope,3+i*1.7,1-i*0.06);}
 function subjSeries(i,scope){return genSeries(scope,11+i*2.3,0.5-i*0.07);}
 function sumH(v){return v.reduce((a,x)=>a+x,0);}
 function sessH(s){if(s.secs!=null)return s.secs/3600;const m=s.duration?.match(/(\d+)h\s+(\d+)m/);return m?parseInt(m[1])+parseInt(m[2])/60:0;}
+function computeStats(sessions){
+  const n=new Date(),dow=(n.getDay()+6)%7;
+  const wkMon=new Date(n);wkMon.setDate(n.getDate()-dow);wkMon.setHours(0,0,0,0);
+  const thisWkH=sessions.reduce((a,s)=>s.created_at&&new Date(s.created_at)>=wkMon?a+sessH(s):a,0);
+  const totalH=sessions.reduce((a,s)=>a+sessH(s),0);
+  const keys=new Set(sessions.filter(s=>s.created_at).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}));
+  let streak=0;for(let i=0;i<365;i++){const d=new Date(n);d.setDate(n.getDate()-i);if(keys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else if(i===0){break;}else{break;}}
+  return{thisWkH,totalH,streak};
+}
 function computeUserSeries(sessions,scope){
   const sc=SCOPES.find(s=>s.id===scope);
   const now=Date.now();
