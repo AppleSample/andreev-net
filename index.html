@@ -481,12 +481,12 @@ function DashSessionBlock({sessionState,onNav,subjects=[]}){
 }
 
 /* ── DASHBOARD SESSION HERO (replaces hours block when session is active) ── */
-function DashSessionHero({sessionState,onNav}){
+function DashSessionHero({sessionState,onNav,subjects=[]}){
   const tick=useTick(1000);
   const elapsed=sessionState.paused
     ?sessionState.elapsed
     :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000);
-  const subjData=D.subjects.find(s=>s.name===sessionState.subject);
+  const subjData=subjects.find(s=>s.name===sessionState.subject);
   const color=subjData?subjData.color:'var(--v1-accent)';
   return(
     <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
