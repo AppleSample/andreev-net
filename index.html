@@ -641,16 +641,9 @@ function DashAgendaCompact({onNav}){
   );
 }
 
-function Dashboard({onNav,sessions,sessionState,subjects=[]}){
-  const me=D.leaderboard.find(u=>u.isYou);
-  const secsThisWeek=sessions.reduce((acc,s)=>{
-    if(s.secs!=null)return acc+s.secs;
-    const m=s.duration?.match(/(\d+)h\s+(\d+)m/);
-    return acc+(m?parseInt(m[1])*3600+parseInt(m[2])*60:0);
-  },0);
-  const wkH=Math.floor(secsThisWeek/3600);
-  const wkM=Math.floor((secsThisWeek%3600)/60);
-  const recentSessions=sessions||D.sessions;
+function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0}){
+  const wkH=Math.floor(thisWkH);
+  const wkM=Math.floor((thisWkH-wkH)*60);
   return(
     <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.8fr) minmax(0,1fr)',height:'100%',overflow:'hidden'}}>
 
