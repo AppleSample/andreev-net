@@ -1703,7 +1703,7 @@ function AuthScreen({onAuth}){
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
         {/* mode tabs */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
-          {(mode==='signin'?[['signin','sign in'],['signup','create account']]:[ ['signup','create account'],['signin','sign in']]).map(([id,label])=>(
+          {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
             <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
               {label}
             </button>
