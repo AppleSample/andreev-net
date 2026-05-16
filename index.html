@@ -1890,7 +1890,7 @@ function Shell({user,onLogout}){
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
       {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)}/>}
-      {showFilter&&<FilterPanel subjects={sessions} onClose={()=>setShowFilter(false)} filterSubjects={filterSubjects} setFilterSubjects={setFilterSubjects} filterMinProd={filterMinProd} setFilterMinProd={setFilterMinProd} onNav={setScreen}/>}
+      {showFilter&&<CommandPalette sessions={sessions} onClose={()=>setShowFilter(false)} onNav={setScreen} onStartSession={()=>setShowPicker(true)}/>}
 
       {/* TOP RAIL */}
       <header style={{display:'grid',gridTemplateColumns:'auto 1fr auto auto auto',alignItems:'center',gap:16,padding:'0 16px',height:40,flexShrink:0,background:'var(--v1-bg)',borderBottom:'1px solid var(--v1-rule)'}}>
