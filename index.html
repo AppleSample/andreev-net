@@ -664,7 +664,7 @@ function DashAgendaCompact({onNav}){
   );
 }
 
-function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0}){
+function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[]}){
   const wkH=Math.floor(thisWkH);
   const wkM=Math.floor((thisWkH-wkH)*60);
   return(
