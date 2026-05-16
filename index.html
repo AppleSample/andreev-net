@@ -2164,8 +2164,9 @@ function Shell({user,onLogout}){
     const color=subj?subj.color:'#5C6776';
     const brk=breakSecs||0;
     const eff=brk>0?Math.round(elapsed/(elapsed+brk)*100):null;
-    const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,productivity:rating,note:'',breakSecs:brk,efficiency:eff};
+    const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,secs:elapsed,productivity:rating,note:'',breakSecs:brk,efficiency:eff};
     setSessions(prev=>[newEntry,...prev]);
+    if(_sb&&user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:newEntry.secs,productivity:newEntry.productivity,note:newEntry.note,day:newEntry.day,time:newEntry.time,color:newEntry.color}).catch(()=>{});
     setSessionState(DEFAULT_SESSION);
     setScreen('dashboard');
   };
