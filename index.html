@@ -1290,7 +1290,10 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
       </div>
 
       {/* Day detail popup */}
-      {sel!==null&&<DayModal sel={sel} today={isCurrentMonth?today:-1} evtsByDay={activeEvtsByDay} todosByDay={activeTodosByDay} ts={ts} setTs={setTs} extras={extras} setExtras={setExtras} onClose={()=>setSel(null)} firstDow={firstDow} monthLabel={monthName.toLowerCase()} subjects={subjects}/>}
+      {sel!==null&&(()=>{
+        const selDateStr=`${calMonth.year}-${String(calMonth.month+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`;
+        return<DayModal sel={sel} selDateStr={selDateStr} today={isCurrentMonth?today:-1} evtsByDay={activeEvtsByDay} todosByDay={activeTodosByDay} todoStates={todoStates} setTodoStates={setTodoStates} setEvents={setEvents} setTodos={setTodos} onClose={()=>setSel(null)} firstDow={firstDow} monthLabel={monthName.toLowerCase()} subjects={subjects}/>;
+      })()}
     </div>
   );
 }
