@@ -2224,11 +2224,11 @@ function Shell({user,onLogout}){
 
       {/* MAIN */}
       <main style={{flex:1,overflow:'hidden',padding:0,position:'relative',display:'flex',flexDirection:'column'}}>
-        {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState} subjects={subjects}/>}
+        {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState} subjects={subjects} weekBars={weekBars} thisWkH={thisWkH}/>}
         {screen==='timer'&&<div style={{overflowY:'auto',flex:1,display:'flex',flexDirection:'column'}}><Timer sessionState={sessionState} onPause={handlePause} onCommit={handleCommit} onDiscard={handleDiscard} onStart={handleStartSession} onLogManual={handleLogManual} subjects={subjects}/></div>}
         {screen==='calendar'&&<Calendar subjects={subjects}/>}
-        {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader/></div>}
-        {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget}/></div>}
+        {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader sessions={sessions} user={user} streak={streak} subjects={subjects}/></div>}
+        {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget} sessions={sessions} heatmap={heatmap} peakHour={peakHour} peakDay={peakDay} activeDays30={activeDays30} thisWkH={thisWkH}/></div>}
         {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects} sessions={sessions}/></div>}
         {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
         {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend user={user}/></div>}
