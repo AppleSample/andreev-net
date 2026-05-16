@@ -1246,52 +1246,31 @@ function Calendar({subjects=[]}){
 }
 
 /* ── RANK ── */
-function Leader(){
+function Leader({sessions=[],user,streak=0,subjects=[]}){
   const[scope,setScope]=useState('7d');
-  if(D.leaderboard.length<=1){
-    return(
-      <Block label="rank.leaderboard" meta="ranked by hours">
-        <EmptyState icon="🏆" title="leaderboard is empty"
-          hint="invite study partners to compete — rankings appear once you have friends"
-        />
-      </Block>
-    );
-  }
-  const users=D.leaderboard.map((u,i)=>({...u,i,series:userSeries(i,scope)}));
-  const ranked=users.map(u=>({...u,total:sumH(u.series)})).sort((a,b)=>b.total-a.total);
-  const me=ranked.find(u=>u.isYou),myRank=ranked.findIndex(u=>u.isYou)+1;
-  const top=ranked[0],second=ranked[1];
-  const lead=myRank===1?me.total-second.total:me.total-top.total;
-  const chartSeries=ranked.slice(0,5).map(u=>({name:u.isYou?'you':u.name,color:u.isYou?'var(--v1-accent)':u.color,values:u.series,dim:!u.isYou&&u.i>0}));
   const sc=SCOPES.find(s=>s.id===scope);
+  const mySeries=computeUserSeries(sessions,scope);
+  const myTotal=sumH(mySeries);
+  const avgPerUnit=myTotal/Math.max(1,sc.n);
+  const trend=mySeries.length>=2?(mySeries[mySeries.length-1]/Math.max(0.01,mySeries[0])*100-100):0;
+  const totalSessions=sessions.length;
   return(
     <div>
-      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta="ranked by hours studied" action={<ScopePicker scope={scope} onScope={setScope}/>}>
+      <Block label={`rank.you · ${scopeLabel(scope)}`} meta="your stats" action={<ScopePicker scope={scope} onScope={setScope}/>}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
-          <KPI k="your_rank" v={`#${myRank}`} sub={`of ${ranked.length}`} tone={myRank===1?'up':'flat'}/>
-          <KPI k="hours" v={fmtHM(me.total)} sub={`${(me.total/sc.n).toFixed(2)}h / ${sc.unit}`}/>
-          <KPI k={myRank===1?'lead_vs_#2':'gap_vs_#1'} v={`${lead>=0?'+':'−'}${fmtHM(Math.abs(lead))}`} sub={myRank===1?`vs ${second.name}`:`vs ${top.name}`} tone={lead>=0?'up':'down'}/>
-          <KPI k="trend" v={(me.series[me.series.length-1]/Math.max(0.01,me.series[0])*100-100).toFixed(0)+'%'} sub="end vs start" tone={me.series[me.series.length-1]>=me.series[0]?'up':'down'}/>
+          <KPI k="hours" v={fmtHM(myTotal)} sub={`${avgPerUnit.toFixed(2)}h / ${sc.unit}`} tone={myTotal>0?'up':'flat'}/>
+          <KPI k="sessions" v={String(totalSessions)} sub={`${subjects.length} subjects`}/>
+          <KPI k="streak" v={`${streak}d`} sub={streak>0?'keep it up':'start today'} tone={streak>0?'up':'flat'}/>
+          <KPI k="trend" v={`${trend>=0?'+':''}${trend.toFixed(0)}%`} sub="end vs start of period" tone={trend>=0?'up':'down'}/>
         </div>
       </Block>
-      <Block label="rank.chart" meta={`top 5 · ${sc.unit} basis`}>
-        <BigChart series={chartSeries} scope={scope} height={260} fillFirst yLabel="h"/>
+      <Block label="rank.chart" meta={`your hours · ${sc.unit} basis`}>
+        <BigChart series={[{name:'you',color:'var(--v1-accent)',values:mySeries}]} scope={scope} height={260} fillFirst yLabel="h"/>
       </Block>
-      <Block label="rank.full" meta={`${ranked.length} members`}>
-        <Tbl cols={['#','who','streak','subj','trend',`${sc.label} hrs`,'share','d_vs_#1']} widths={['32px','auto','60px','40px','110px','80px','120px','80px']}>
-          {ranked.map((u,i)=>{const share=u.total/top.total,delta=u.total-top.total;return(
-            <Row key={u.name} hi={u.isYou}>
-              <Cell mono dim>#{String(i+1).padStart(2,'0')}</Cell>
-              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:7,height:7,background:u.color,borderRadius:1}}/><span style={{color:u.isYou?'var(--v1-accent)':'var(--v1-fg)'}}>{u.isYou?'you':u.name}</span></span></Cell>
-              <Cell mono dim>{u.streak}d</Cell>
-              <Cell mono dim>{u.subjects}</Cell>
-              <Cell><Spark data={u.series} w={104} h={20} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
-              <Cell mono right>{fmtHM(u.total)}</Cell>
-              <Cell><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${share*100}%`,background:u.isYou?'var(--v1-accent)':u.color}}/></div><span style={{fontSize:10,color:'var(--v1-fg-muted)',width:30,textAlign:'right'}}>{Math.round(share*100)}%</span></div></Cell>
-              <Cell mono right dim tone={i===0?'flat':delta>=0?'up':'down'}>{i===0?'—':`${delta>=0?'+':'−'}${fmtHM(Math.abs(delta))}`}</Cell>
-            </Row>
-          );})}
-        </Tbl>
+      <Block label="rank.friends" meta="leaderboard" noBorder>
+        <EmptyState icon="👥" title="invite friends to compete"
+          hint="share the link with study partners — once they join, they appear here ranked by hours"
+        />
       </Block>
     </div>
   );
