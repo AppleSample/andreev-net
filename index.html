@@ -1305,22 +1305,23 @@ function FocusGrid({heatmap}){
   );
 }
 
-function Heatmap({weeklyTarget,setWeeklyTarget}){
+function Heatmap({weeklyTarget,setWeeklyTarget,sessions=[],heatmap,peakHour,peakDay,activeDays30=0,thisWkH=0}){
   const[mode,setMode]=useState('focus');
   const[editing,setEditing]=useState(false);
   const[draft,setDraft]=useState(String(weeklyTarget));
-  const wkHours=0;
-  const pace=Math.round((wkHours/weeklyTarget)*100);
+  const pace=Math.round((thisWkH/weeklyTarget)*100);
   const paceColor=pace>=100?'var(--v1-up)':pace>=75?'var(--v1-fg-2)':'var(--v1-down)';
   const commitTarget=()=>{const n=parseFloat(draft);if(!isNaN(n)&&n>0){setWeeklyTarget(Math.round(n));setEditing(false);}};
+  const DAYNAMES=['mon','tue','wed','thu','fri','sat','sun'];
+  const HOURNAMES=Array.from({length:24},(_,h)=>`${String(h).padStart(2,'0')}:00`);
   return(
     <div>
-      <Block label="hours.summary" meta="last 30d">
+      <Block label="hours.summary" meta="all time">
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
-          <KPI k="best_hour"   v="—"   sub="no data yet"/>
-          <KPI k="best_day"    v="—"   sub="no data yet"/>
-          <KPI k="weakest"     v="—"   sub="no data yet"/>
-          <KPI k="active_days" v="0 / 30" sub="streak 0d"/>
+          <KPI k="best_hour" v={peakHour!=null?`${String(peakHour).padStart(2,'0')}:00`:'—'} sub={peakHour!=null?'peak focus hour':'no data yet'} tone={peakHour!=null?'up':'flat'}/>
+          <KPI k="best_day"  v={peakDay!=null?DAYNAMES[peakDay]:'—'} sub={peakDay!=null?'most productive day':'no data yet'} tone={peakDay!=null?'up':'flat'}/>
+          <KPI k="sessions"  v={String(sessions.length)} sub={`${activeDays30} active days / 30`}/>
+          <KPI k="active_days" v={`${activeDays30} / 30`} sub={`streak data in status bar`}/>
         </div>
       </Block>
       <Block label="weekly_target.pace" meta="set your weekly hour goal">
