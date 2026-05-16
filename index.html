@@ -131,14 +131,18 @@ const sbAPI={
   },
   async getLeaderboard(uid){
     const{data:reqs}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
-    const friendIds=(reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id);
+    const friendIds=[...new Set((reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id))];
     const allIds=[uid,...friendIds];
     const[{data:stats},{data:profs}]=await Promise.all([
       _sb.from('user_stats').select('*').in('user_id',allIds),
       _sb.from('profiles').select('id,name').in('id',allIds),
     ]);
     const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
-    return(stats||[]).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0}));
+    const seen=new Set();
+    return(stats||[]).filter(s=>{if(seen.has(s.user_id))return false;seen.add(s.user_id);return true;}).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0}));
+  },
+  async removeFriend(uid,friendId){
+    await _sb.from('friend_requests').delete().or(`and(from_id.eq.${uid},to_id.eq.${friendId}),and(from_id.eq.${friendId},to_id.eq.${uid})`);
   }
 };
 
