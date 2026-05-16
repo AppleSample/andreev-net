@@ -2174,7 +2174,7 @@ function Shell({user,onLogout}){
         {screen==='calendar'&&<Calendar/>}
         {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader/></div>}
         {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget}/></div>}
-        {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects}/></div>}
+        {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects} sessions={sessions}/></div>}
         {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
         {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend user={user}/></div>}
       </main>
