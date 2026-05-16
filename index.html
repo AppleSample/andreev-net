@@ -1543,7 +1543,7 @@ function Subjects({sessions=[],user}){
             <div key={s.id||s.name} style={{display:'grid',gridTemplateColumns:'10px 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
               <span style={{width:10,height:10,background:s.color,flexShrink:0}}/>
               <span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
-              <button onClick={()=>setSubjs(a=>a.filter((_,j)=>j!==i))}
+              <button onClick={()=>{if(useSupa&&s.id)sbAPI.deleteSubject(s.id).catch(()=>{});setSubjs(a=>a.filter((_,j)=>j!==i));}}
                 style={{...Btn.sm,fontSize:10,padding:'3px 10px'}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
