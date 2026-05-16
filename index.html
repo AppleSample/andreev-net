@@ -1636,11 +1636,13 @@ function DailyHeatmap({sessions}){
         </div>
         {/* Legend */}
         <div style={{marginTop:10,display:'flex',gap:4,alignItems:'center',fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-          <span style={{marginRight:2}}>less</span>
-          {['var(--v1-bg-elev-2)',...[0.22,0.42,0.62,0.82,1.0].map(v=>`rgba(79,123,255,${v})`)].map((bg,i)=>(
-            <div key={i} style={{width:CELL,height:CELL,background:bg,borderRadius:2,flexShrink:0}}/>
+          <span style={{marginRight:2}}>0h</span>
+          {[['var(--v1-bg-elev-2)','0h'],[`rgba(79,123,255,0.25)`,'<1h'],[`rgba(79,123,255,0.5)`,'1h'],[`rgba(79,123,255,0.75)`,'2h'],[`rgba(79,123,255,1.0)`,'3h+']].map(([bg,label],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'center',gap:3}}>
+              <div style={{width:CELL,height:CELL,background:bg,borderRadius:2,flexShrink:0}}/>
+              <span style={{fontSize:8,color:'var(--v1-fg-muted)'}}>{label}</span>
+            </div>
           ))}
-          <span style={{marginLeft:2}}>more</span>
         </div>
       </div>
 
