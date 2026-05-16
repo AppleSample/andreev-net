@@ -1983,7 +1983,7 @@ function Shell({user,onLogout}){
     const hrs=Math.floor(elapsed/3600);
     const mins=Math.floor((elapsed%3600)/60);
     const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
-    const subj=D.subjects.find(s=>s.name===sessionState.subject);
+    const subj=subjects.find(s=>s.name===sessionState.subject);
     const color=subj?subj.color:'#5C6776';
     const brk=breakSecs||0;
     const eff=brk>0?Math.round(elapsed/(elapsed+brk)*100):null;
