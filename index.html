@@ -1427,14 +1427,22 @@ function SubjectsDonut({scoped,total}){
   );
 }
 
-function Subjects({user,subjects=[],setSubjects}){
+function Subjects({user,subjects=[],setSubjects,sessions=[]}){
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
   const[manageOpen,setManageOpen]=useState(false);
   // Use shared subjects from Shell
   const subjs=subjects.map(s=>({...s,_idx:s.id??s._idx??s.name}));
 
-  const scoped=subjs.map((s,i)=>{const series=subjSeries(i,scope);return{...s,series,total:sumH(series)};});
+  const scoped=subjs.map(s=>{
+    const series=computeSubjectSeries(sessions,s.name,scope);
+    const total=sumH(series);
+    const ss=sessions.filter(x=>x.subject===s.name);
+    const prods=ss.filter(x=>x.productivity!=null);
+    const productivity=prods.length>0?prods.reduce((a,x)=>a+x.productivity,0)/prods.length:null;
+    const lastStudied=ss.length>0?(ss[0].day||'—'):'—';
+    return{...s,series,total,sessions:ss.length,productivity,lastStudied};
+  });
   const grand=scoped.reduce((a,s)=>a+s.total,0);
   const sc=SCOPES.find(s=>s.id===scope);
   const[name,setName]=useState('');const[col,setCol]=useState(SUBJ_COLORS[4]);
