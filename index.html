@@ -1843,54 +1843,57 @@ function CommandPalette({sessions,onClose,onNav,onStartSession}){
 }
 
 /* ── AUTH SCREEN ── */
-/* Google sign-in via Netlify Identity — zero Google Cloud Console setup needed.
-   Enable once at: app.netlify.com → your site → Identity → Enable → External Providers → Google */
-
 function AuthScreen({onAuth}){
-  // default to sign-in if this browser already has a registered account
-  const[mode,setMode]=useState(()=>localAuth._users().length>0?'signin':'signup');
+  // 'signin' | 'signup' | 'otp'
+  const[mode,setMode]=useState(()=>(_sb||localAuth._users().length>0)?'signin':'signup');
   const[name,setName]=useState('');
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
   const[confirm,setConfirm]=useState('');
+  const[otpCode,setOtpCode]=useState('');
+  const[pendingEmail,setPendingEmail]=useState('');
+  const[pendingName,setPendingName]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
-  const[gLoading,setGLoading]=useState(false);
+  const otpRef=useRef(null);
   const emailRef=useRef(null);
 
-  /* Load Netlify Identity widget script on demand, wire up handlers once loaded */
-  const loadAndOpenIdentity=useCallback(()=>{
-    const init=()=>{
-      netlifyIdentity.init({APIUrl:'https://andreev-net.netlify.app/.netlify/identity'});
-      netlifyIdentity.on('login',u=>{
-        if(!u)return;
-        netlifyIdentity.close();
-        const user={id:u.id,name:u.user_metadata?.full_name||u.email.split('@')[0],email:u.email,avatar:u.user_metadata?.avatar_url||null,provider:'netlify'};
-        localAuth.saveSession(user);
-        setGLoading(false);
-        onAuth(user);
-      });
-      netlifyIdentity.on('error',err=>{setGLoading(false);setError(err?.message||'sign-in failed');});
-      netlifyIdentity.open();
-    };
-    if(window.netlifyIdentity){init();return;}
-    const s=document.createElement('script');
-    s.src='https://identity.netlify.com/v1/netlify-identity-widget.js';
-    s.onload=init;
-    s.onerror=()=>{setGLoading(false);setError('could not load identity widget — check connection');};
-    document.head.appendChild(s);
-  },[onAuth]);
+  useEffect(()=>{setError('');setPassword('');setConfirm('');setOtpCode('');},[mode]);
+  useEffect(()=>{
+    if(mode==='otp')setTimeout(()=>otpRef.current?.focus(),60);
+    else setTimeout(()=>emailRef.current?.focus(),60);
+  },[mode]);
 
-  useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
-  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
+  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
 
-  const handleGoogle=()=>{
-    setGLoading(true);
+  /* ── SUPABASE OTP FLOW ── */
+  const submitSupa=async e=>{
+    e.preventDefault();
     setError('');
-    loadAndOpenIdentity();
+    if(!email.trim()){setError('email is required');return;}
+    if(mode==='signup'&&!name.trim()){setError('name is required');return;}
+    setLoading(true);
+    const res=await sbAPI.sendOTP(email.trim());
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    setPendingEmail(email.trim());
+    setPendingName(name.trim());
+    setMode('otp');
   };
 
-  const submit=async e=>{
+  const verifyOTP=async e=>{
+    e.preventDefault();
+    setError('');
+    if(otpCode.trim().length<4){setError('enter the code from your email');return;}
+    setLoading(true);
+    const res=await sbAPI.verifyOTP(pendingEmail,otpCode.trim(),pendingName||undefined);
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    onAuth(res.user);
+  };
+
+  /* ── LOCAL PASSWORD FLOW (fallback) ── */
+  const submitLocal=async e=>{
     e.preventDefault();
     setError('');
     if(!email.trim()){setError('email is required');return;}
@@ -1912,32 +1915,46 @@ function AuthScreen({onAuth}){
     }
   };
 
-  const GoogleIcon=()=>(
-    <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-      <path fill="none" d="M0 0h48v48H0z"/>
-    </svg>
-  );
+  /* ── OTP ENTRY SCREEN ── */
+  if(mode==='otp'){
+    return(
+      <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
+        <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
+          <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span><span style={{fontWeight:600}}>Andreev</span><span style={{color:'var(--v1-fg-3)'}}>.net</span><span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
+        </div>
+        <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
+          <div style={{padding:'16px 24px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)'}}>
+            <div style={{fontSize:10,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:4}}>check your email</div>
+            <div style={{fontSize:12,color:'var(--v1-fg-2)'}}>we sent a 6-digit code to <span style={{color:'var(--v1-fg)'}}>{pendingEmail}</span></div>
+          </div>
+          <form onSubmit={verifyOTP} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>verification code</label>
+              <input ref={otpRef} value={otpCode} onChange={e=>setOtpCode(e.target.value.replace(/\D/g,''))} maxLength={6} placeholder="000000"
+                style={{...fieldStyle,fontSize:28,letterSpacing:'0.3em',textAlign:'center'}}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600}}>
+              {loading?'verifying…':'verify & continue →'}
+            </button>
+            <div style={{display:'flex',gap:14,fontSize:10,color:'var(--v1-fg-muted)'}}>
+              <button type="button" onClick={()=>{setMode(pendingName?'signup':'signin');setOtpCode('');setError('');}} style={{background:'none',border:'none',color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>← back</button>
+              <button type="button" onClick={async()=>{setError('');setLoading(true);const r=await sbAPI.sendOTP(pendingEmail);setLoading(false);if(r.error)setError(r.error);}} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>resend code</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
-  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
-
+  /* ── MAIN AUTH CARD ── */
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
-
-      {/* logo */}
       <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
-        <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
-        <span style={{fontWeight:600}}>Andreev</span>
-        <span style={{color:'var(--v1-fg-3)'}}>.net</span>
-        <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
+        <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span><span style={{fontWeight:600}}>Andreev</span><span style={{color:'var(--v1-fg-3)'}}>.net</span><span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
       </div>
-
-      {/* card */}
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
-        {/* mode tabs */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
           {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
             <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
@@ -1945,25 +1962,11 @@ function AuthScreen({onAuth}){
             </button>
           ))}
         </div>
-
         <div style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-
-          {/* Google button */}
-          <button type="button" onClick={handleGoogle} disabled={gLoading}
-            style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.06em',cursor:gLoading?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all 80ms',opacity:gLoading?0.6:1}}
-            onMouseEnter={e=>{if(!gLoading){e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
-            {gLoading?<span style={{fontSize:11,letterSpacing:'0.1em'}}>opening google…</span>:<><GoogleIcon/><span>continue with google</span></>}
-          </button>
-
-          {/* divider */}
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-            <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
-            <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-          </div>
-
-          <form onSubmit={submit} style={{display:'flex',flexDirection:'column',gap:12}}>
+          {_sb&&<div style={{padding:'8px 10px',background:'rgba(79,123,255,0.07)',border:'1px solid rgba(79,123,255,0.3)',fontSize:10,color:'var(--v1-fg-3)',letterSpacing:'0.04em'}}>
+            a verification code will be sent to your email
+          </div>}
+          <form onSubmit={_sb?submitSupa:submitLocal} style={{display:'flex',flexDirection:'column',gap:12}}>
             {mode==='signup'&&(
               <div style={{display:'flex',flexDirection:'column',gap:5}}>
                 <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
@@ -1976,38 +1979,33 @@ function AuthScreen({onAuth}){
               <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-            <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
-                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-            </div>
-            {mode==='signup'&&(
+            {!_sb&&<>
               <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
-                <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+                <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
                   onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
               </div>
-            )}
-            {error&&(
-              <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
-                ✕ {error}
-              </div>
-            )}
+              {mode==='signup'&&(
+                <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                  <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
+                  <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                    onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+                </div>
+              )}
+            </>}
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
             <button type="submit" disabled={loading} style={{marginTop:2,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-              {loading?'...':(mode==='signin'?'sign in →':'create account →')}
+              {loading?'…':(mode==='signin'?(_sb?'send code →':'sign in →'):(_sb?'send code →':'create account →'))}
             </button>
           </form>
         </div>
-
         <div style={{borderTop:'1px solid var(--v1-rule)',padding:'12px 24px',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'center',letterSpacing:'0.04em'}}>
           {mode==='signin'?<>no account? <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>create one</button></>
             :<>already have one? <button onClick={()=>setMode('signin')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>sign in</button></>}
         </div>
       </div>
-
-      {/* footer note */}
       <div style={{position:'absolute',bottom:16,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.12em',textTransform:'uppercase'}}>
-        accounts stored locally · no data sent anywhere
+        {_sb?'verified accounts · data synced across devices':'accounts stored locally · configure supabase for cross-device sync'}
       </div>
     </div>
   );
