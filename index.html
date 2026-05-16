@@ -517,7 +517,7 @@ function Dashboard({onNav,sessions,sessionState}){
           ? <DashSessionHero sessionState={sessionState} onNav={onNav}/>
           : <Block label="this_week.hours" meta="δ vs prior week">
               {secsThisWeek===0?(
-                <EmptyState icon="⏱" title="no study hours yet this week"
+                <EmptyState icon="+" title="no study hours yet this week"
                   hint="start your first session to begin tracking"
                   action={<button onClick={()=>onNav('timer')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>begin session →</button>}
                 />
