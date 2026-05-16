@@ -2052,55 +2052,49 @@ function GoogleSetupModal({onClose,onSave}){
   );
 }
 
+function toSyntheticEmail(username){return`${username.trim().toLowerCase().replace(/[^a-z0-9]/g,'_')}@andreev.net`;}
+
 function AuthScreen({onAuth}){
-  const[mode,setMode]=useState('signin'); // 'signin'|'signup'|'verify'
-  const[name,setName]=useState('');
-  const[email,setEmail]=useState('');
+  const[mode,setMode]=useState('signin'); // 'signin'|'signup'
+  const[username,setUsername]=useState('');
+  const[displayName,setDisplayName]=useState('');
   const[password,setPassword]=useState('');
   const[confirm,setConfirm]=useState('');
-  const[code,setCode]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
   const firstRef=useRef(null);
-  const codeRef=useRef(null);
 
   useEffect(()=>{setTimeout(()=>firstRef.current?.focus(),60);},[mode]);
-  useEffect(()=>{if(mode==='verify')setTimeout(()=>codeRef.current?.focus(),60);},[mode]);
 
   const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
 
   const doSignIn=async e=>{
     e.preventDefault();
-    if(!email.trim()||!password){setError('email and password are required');return;}
+    if(!username.trim()||!password){setError('username and password are required');return;}
     setLoading(true);setError('');
-    const res=await sbAPI.signIn(email.trim().toLowerCase(),password);
+    const email=toSyntheticEmail(username);
+    const res=await sbAPI.signIn(email,password);
     setLoading(false);
-    if(res.error){setError(res.error);return;}
+    if(res.error){setError('incorrect username or password');return;}
     onAuth(res.user);
   };
 
   const doSignUp=async e=>{
     e.preventDefault();
-    if(!name.trim()){setError('display name is required');return;}
-    if(!email.trim()){setError('email is required');return;}
+    const uname=username.trim();
+    const dname=(displayName.trim()||uname);
+    if(!uname){setError('username is required');return;}
+    if(uname.length<3){setError('username must be at least 3 characters');return;}
+    if(!/^[a-zA-Z0-9_]+$/.test(uname)){setError('username can only contain letters, numbers and underscores');return;}
     if(password.length<6){setError('password must be at least 6 characters');return;}
     if(password!==confirm){setError('passwords do not match');return;}
     setLoading(true);setError('');
-    const res=await sbAPI.signUp(email.trim().toLowerCase(),password,name.trim());
+    const email=toSyntheticEmail(uname);
+    const res=await sbAPI.signUp(email,password,dname);
     setLoading(false);
-    if(res.error){setError(res.error);return;}
-    if(res.needsVerification){setMode('verify');}
-    else if(res.user){onAuth(res.user);}
-  };
-
-  const doVerify=async e=>{
-    e.preventDefault();
-    if(code.trim().length<6){setError('enter the 6-digit code from your email');return;}
-    setLoading(true);setError('');
-    const res=await sbAPI.verifyEmail(email.trim().toLowerCase(),code.trim());
-    setLoading(false);
-    if(res.error){setError(res.error);return;}
-    onAuth(res.user);
+    if(res.error){setError(res.error.includes('already')?'that username is taken — try another':res.error);return;}
+    if(res.user){onAuth(res.user);}
+    else{setError('account created — you can now sign in');}
   };
 
   return(
@@ -2115,35 +2109,26 @@ function AuthScreen({onAuth}){
 
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
 
-        {/* tabs — only shown on signin/signup */}
-        {mode!=='verify'&&(
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
-            {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
-              <button key={id} onClick={()=>{setMode(id);setError('');}} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* verify email step */}
-        {mode==='verify'&&(
-          <div style={{padding:'13px 24px',borderBottom:'1px solid var(--v1-rule)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--v1-fg-2)'}}>
-            verify your email
-          </div>
-        )}
+        {/* tabs */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
+          {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
+            <button key={id} onClick={()=>{setMode(id);setError('');}} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
+              {label}
+            </button>
+          ))}
+        </div>
 
         {/* sign in form */}
         {mode==='signin'&&(
           <form onSubmit={doSignIn} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-              <input ref={firstRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>username</label>
+              <input ref={firstRef} value={username} onChange={e=>setUsername(e.target.value)} placeholder="your username" autoComplete="username" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
               <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="••••••••" autoComplete="current-password" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
@@ -2157,18 +2142,18 @@ function AuthScreen({onAuth}){
         {mode==='signup'&&(
           <form onSubmit={doSignUp} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
-              <input ref={firstRef} value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>username <span style={{color:'var(--v1-fg-muted)',letterSpacing:'0.08em',textTransform:'none',fontSize:8}}>(letters, numbers, _)</span></label>
+              <input ref={firstRef} value={username} onChange={e=>setUsername(e.target.value)} placeholder="e.g. sasha_a" autoComplete="username" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-              <input value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name <span style={{color:'var(--v1-fg-muted)',letterSpacing:'0.08em',textTransform:'none',fontSize:8}}>(optional)</span></label>
+              <input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="shown to friends" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
               <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="min 6 characters" style={fieldStyle}
+              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder="min 6 characters" autoComplete="new-password" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
