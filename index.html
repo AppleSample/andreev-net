@@ -40,64 +40,35 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0A0B0D;}
 const{useState,useEffect,useRef,useMemo,useCallback}=React;
 
 /* ══════════════════════════════════════════════════════════════
-   AUTH MODULE — localStorage-backed, Supabase-ready
-   To swap to Supabase: replace signUp / signIn / signOut below
+   AUTH — Netlify Identity (handles Google OAuth, email/password)
+   Local fallback (localStorage) used when Identity not configured
    ══════════════════════════════════════════════════════════════ */
-const auth={
-  _key:'andreev_users',
-  _sessionKey:'andreev_session',
+
+/* ── local fallback (email/password only) ── */
+const localAuth={
+  _key:'andreev_users', _sessionKey:'andreev_session',
   _users(){try{return JSON.parse(localStorage.getItem(this._key)||'[]');}catch{return[];}},
-  _save(users){localStorage.setItem(this._key,JSON.stringify(users));},
-  getUser(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
+  _save(u){localStorage.setItem(this._key,JSON.stringify(u));},
+  getSession(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
+  saveSession(u){localStorage.setItem(this._sessionKey,JSON.stringify(u));},
+  clearSession(){localStorage.removeItem(this._sessionKey);},
   signUp(name,email,password){
     const users=this._users();
-    if(users.find(u=>u.email.toLowerCase()===email.toLowerCase()))
-      return{error:'an account with this email already exists'};
+    if(users.find(u=>u.email.toLowerCase()===email.toLowerCase())) return{error:'account already exists with this email'};
     if(password.length<6) return{error:'password must be at least 6 characters'};
-    const user={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),password,createdAt:new Date().toISOString()};
-    this._save([...users,user]);
-    const session={id:user.id,name:user.name,email:user.email};
-    localStorage.setItem(this._sessionKey,JSON.stringify(session));
-    return{user:session};
+    const u={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),password,createdAt:new Date().toISOString()};
+    this._save([...users,u]);
+    const s={id:u.id,name:u.name,email:u.email};
+    this.saveSession(s);return{user:s};
   },
   signIn(email,password){
-    const user=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
-    if(!user) return{error:'no account found with that email'};
-    if(user.password!==password) return{error:'incorrect password'};
-    const session={id:user.id,name:user.name,email:user.email};
-    localStorage.setItem(this._sessionKey,JSON.stringify(session));
-    return{user:session};
-  },
-  signOut(){localStorage.removeItem(this._sessionKey);},
-  signInWithGoogle(googleData){
-    /* googleData: {id, name, email} — extracted from GSI JWT */
-    const users=this._users();
-    let user=users.find(u=>u.email.toLowerCase()===googleData.email.toLowerCase());
-    if(!user){
-      user={id:googleData.id||Date.now().toString(),name:googleData.name,email:googleData.email.toLowerCase(),provider:'google',createdAt:new Date().toISOString()};
-      this._save([...users,user]);
-    }
-    const session={id:user.id,name:user.name,email:user.email};
-    localStorage.setItem(this._sessionKey,JSON.stringify(session));
-    return{user:session};
+    const u=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    if(!u) return{error:'no account found with that email'};
+    if(u.password!==password) return{error:'incorrect password'};
+    const s={id:u.id,name:u.name,email:u.email};
+    this.saveSession(s);return{user:s};
   },
 };
-
-/* ── GOOGLE OAUTH CONFIG ──
-   Client ID is read from localStorage so you can set it without redeploying.
-   To activate Google Sign-In, paste your Client ID in the setup modal on the auth screen.
-   Get one at: console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0 Client ID
-   Authorised JS origins: https://andreev-net.netlify.app AND http://localhost:7823 */
-const GOOGLE_CLIENT_ID=(()=>{
-  try{return localStorage.getItem('google_client_id')||'';}catch{return '';}
-})();
-
-function decodeGoogleJwt(token){
-  try{
-    const b64=token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    return JSON.parse(atob(b64));
-  }catch{return null;}
-}
 
 /* ── DATA ── */
 const _now=new Date();
