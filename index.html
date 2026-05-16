@@ -1784,15 +1784,28 @@ function Friend({user}){
       <Block label="network.members" meta={`${friends.length+1} member${friends.length!==0?'s':''}`}>
         {friends.length===0
           ?<EmptyState title="no friends yet" hint="search by name above to send a friend request"/>
-          :<Tbl cols={['who','']} widths={['auto','1fr']}>
-            <Row hi><Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:'var(--v1-accent)'}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell><Cell/></Row>
-            {friends.map(f=>(
-              <Row key={f.id}>
-                <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:FRIEND_COLORS[0]}}/>{f.name}</span></Cell>
-                <Cell/>
-              </Row>
+          :<div style={{border:'1px solid var(--v1-rule)'}}>
+            <div style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:26,alignItems:'center',background:'var(--v1-bg-elev)',borderBottom:'1px solid var(--v1-rule)',fontSize:9,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+              <span/><span style={{padding:'0 6px'}}>who</span><span/>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:32,alignItems:'center',background:'rgba(79,123,255,0.07)',fontFamily:'var(--v1-mono)'}}>
+              <span style={{width:6,height:6,background:'var(--v1-accent)',borderRadius:1,marginRight:8}}/>
+              <span style={{fontSize:11,color:'var(--v1-accent)',padding:'0 6px'}}>you</span>
+              <span/>
+            </div>
+            {friends.map((f,i)=>(
+              <div key={f.id} style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:32,alignItems:'center',borderTop:'1px solid var(--v1-rule)',background:i%2===0?'transparent':'rgba(255,255,255,0.012)',fontFamily:'var(--v1-mono)'}}>
+                <span style={{width:6,height:6,background:FRIEND_COLORS[i%FRIEND_COLORS.length],borderRadius:1,marginRight:8}}/>
+                <span style={{fontSize:11,color:'var(--v1-fg)',padding:'0 6px'}}>{f.name}</span>
+                <button onClick={()=>removeFriend(f.id)}
+                  style={{...Btn.sm,fontSize:9,padding:'2px 8px',color:'var(--v1-fg-muted)',borderColor:'var(--v1-rule)'}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule)';e.currentTarget.style.color='var(--v1-fg-muted)';}}>
+                  remove
+                </button>
+              </div>
             ))}
-          </Tbl>
+          </div>
         }
       </Block>
     </div>
