@@ -1103,7 +1103,7 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
               </div>
               <select value={newSubj||''} onChange={e=>setNewSubj(e.target.value||null)} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:'var(--v1-bg)',color:'var(--v1-fg-2)',border:'1px solid var(--v1-rule-strong)',padding:'0 8px',cursor:'pointer',outline:'none'}}>
                 <option value="">no subject</option>
-                {D.subjects.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
+                {subjects.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
               </select>
               <button onClick={addTodo} disabled={!newTitle.trim()} style={{...Btn.sm,background:newTitle.trim()?'var(--v1-accent)':'transparent',color:newTitle.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:newTitle.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:newTitle.trim()?1:0.5}}>add ↵</button>
             </div>
