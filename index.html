@@ -2059,7 +2059,7 @@ function Shell({user,onLogout}){
         <nav style={{display:'flex',gap:2,alignItems:'center',overflow:'hidden'}}>
           {TABS.map(t=>{const a=screen===t.id;return(
             <button key={t.id} onClick={()=>setScreen(t.id)} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:a?'var(--v1-bg-elev)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderBottom:a?'1px solid var(--v1-accent)':'1px solid transparent',padding:'11px 12px',cursor:'pointer',whiteSpace:'nowrap',letterSpacing:'0.04em',position:'relative',top:1}}>
-              <span style={{color:'var(--v1-fg-muted)',marginRight:6}}>{t.kbd}</span>{t.label}
+              {t.label}
             </button>
           );})}
         </nav>
