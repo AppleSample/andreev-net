@@ -538,7 +538,7 @@ function Dashboard({onNav,sessions,sessionState}){
         </Block>
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
           {D.leaderboard.length<=1?(
-            <EmptyState icon="👥" title="you're the only one here"
+            <EmptyState icon="+" title="you're the only one here"
               hint="invite friends to study together and compete on the leaderboard"
             />
           ):(()=>{
