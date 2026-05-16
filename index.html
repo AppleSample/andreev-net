@@ -263,7 +263,6 @@ function Block({label,meta,action,children,pad='18px 18px 22px',noBorder}){
   return(
     <section style={{borderBottom:noBorder?'none':'1px solid var(--v1-rule)'}}>
       <header style={{display:'flex',alignItems:'center',gap:12,padding:'10px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-        <span style={{color:'var(--v1-accent)'}}>◆</span>
         <span style={{color:'var(--v1-fg-2)'}}>{label}</span>
         {meta&&<span>· {meta}</span>}
         <span style={{flex:1}}/>
