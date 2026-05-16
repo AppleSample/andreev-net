@@ -1667,13 +1667,12 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
             {results.length===0
               ? <div style={{padding:'12px 14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no sessions match "{query}"</div>
               : results.map((s,i)=>{
-                  const subj=D.subjects.find(x=>x.name===s.subject);
                   return(
                     <div key={i} onClick={()=>{setFilterSubjects(s.subject?[s.subject]:[]);setFilterMinProd(0);onNav&&onNav('log');onClose();}}
                       style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer'}}
                       onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
                       onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                      <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
+                      <span style={{width:4,height:16,background:s.color||'var(--v1-fg-muted)',display:'block'}}/>
                       <div>
                         <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject}</span>
                         {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
