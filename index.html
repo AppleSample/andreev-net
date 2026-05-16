@@ -2098,8 +2098,31 @@ function Shell({user,onLogout}){
 }
 
 function App(){
-  const[user,setUser]=useState(()=>auth.getUser());
-  const handleLogout=()=>{auth.signOut();setUser(null);};
+  const[user,setUser]=useState(null);
+  const[checking,setChecking]=useState(true);
+
+  useEffect(()=>{
+    if(!_sb){setChecking(false);return;}
+    sbAPI.getSession().then(u=>{setUser(u);setChecking(false);});
+    // listen for auth state changes (e.g. OTP verify in another tab)
+    const{data:{subscription}}=_sb.auth.onAuthStateChange(async(_ev,session)=>{
+      if(session?.user){
+        const{data:p}=await _sb.from('profiles').select('name').eq('id',session.user.id).single();
+        setUser({id:session.user.id,email:session.user.email,name:p?.name||session.user.email.split('@')[0]});
+      }else{
+        setUser(null);
+      }
+    });
+    return()=>subscription.unsubscribe();
+  },[]);
+
+  const handleLogout=async()=>{await sbAPI.signOut();setUser(null);};
+
+  if(checking)return(
+    <div className="v1" style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.12em'}}>
+      loading...
+    </div>
+  );
   if(!user) return <AuthScreen onAuth={setUser}/>;
   return <Shell user={user} onLogout={handleLogout}/>;
 }
