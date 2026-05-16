@@ -778,6 +778,8 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
   const[logMins,setLogMins]=useState('');
   const[logNote,setLogNote]=useState('');
   const[logRating,setLogRating]=useState(null);
+  const[logTime,setLogTime]=useState(()=>{const n=new Date();return`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;});
+  const[logDateOffset,setLogDateOffset]=useState(0); // 0=today, 1=yesterday, 2=custom
   // pomodoro state
   const[pomOn,setPomOn]=useState(false);
   const[pomWork,setPomWork]=useState(25);
