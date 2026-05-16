@@ -84,10 +84,13 @@ const auth={
 };
 
 /* ── GOOGLE OAUTH CONFIG ──
-   Replace with your real Client ID from console.cloud.google.com
-   (Create project → APIs & Services → Credentials → OAuth 2.0 Client ID)
-   Authorised origins must include your deployment URL (e.g. https://andreev.netlify.app) */
-const GOOGLE_CLIENT_ID='YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+   Client ID is read from localStorage so you can set it without redeploying.
+   To activate Google Sign-In, paste your Client ID in the setup modal on the auth screen.
+   Get one at: console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0 Client ID
+   Authorised JS origins: https://andreev-net.netlify.app AND http://localhost:7823 */
+const GOOGLE_CLIENT_ID=(()=>{
+  try{return localStorage.getItem('google_client_id')||'';}catch{return '';}
+})();
 
 function decodeGoogleJwt(token){
   try{
@@ -1561,6 +1564,68 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
 }
 
 /* ── AUTH SCREEN ── */
+function GoogleSetupModal({onClose,onSave}){
+  const[clientId,setClientId]=useState('');
+  const save=()=>{
+    const v=clientId.trim();
+    if(!v||!v.includes('.apps.googleusercontent.com')){return;}
+    localStorage.setItem('google_client_id',v);
+    onSave();
+  };
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:500,background:'rgba(5,6,8,0.85)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:480,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)'}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
+          <span style={{color:'var(--v1-fg-2)'}}>set up google sign-in</span>
+          <span style={{flex:1}}/>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11}}>✕</button>
+        </div>
+        <div style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{fontSize:11,color:'var(--v1-fg-2)',lineHeight:1.7}}>
+            Google Sign-In needs a free OAuth Client ID. Takes 3 minutes:
+          </div>
+          {[
+            ['1','Go to','console.cloud.google.com','https://console.cloud.google.com'],
+            ['2','Create a new project (any name)','',''],
+            ['3','APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID','',''],
+            ['4','Application type: Web · Add authorised JS origin:','andreev-net.netlify.app',''],
+            ['5','Copy the Client ID (ends in .apps.googleusercontent.com) and paste below','',''],
+          ].map(([n,text,link,href])=>(
+            <div key={n} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+              <span style={{width:20,height:20,background:'var(--v1-accent)',color:'var(--v1-bg)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</span>
+              <span style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.5}}>
+                {text}{' '}
+                {link&&<span style={{color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10}}>{link}</span>}
+                {href&&<a href={href} target="_blank" rel="noreferrer" style={{color:'var(--v1-accent)',fontSize:10,marginLeft:4}}>↗</a>}
+              </span>
+            </div>
+          ))}
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <input
+              value={clientId} onChange={e=>setClientId(e.target.value)}
+              placeholder="xxxxxxxxxx.apps.googleusercontent.com"
+              style={{flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:11,padding:'9px 10px',outline:'none'}}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
+              onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
+              onKeyDown={e=>{if(e.key==='Enter')save();}}
+              autoFocus
+            />
+            <button onClick={save}
+              disabled={!clientId.includes('.apps.googleusercontent.com')}
+              style={{padding:'9px 16px',background:clientId.includes('.apps.googleusercontent.com')?'var(--v1-accent)':'var(--v1-bg-hover)',color:clientId.includes('.apps.googleusercontent.com')?'var(--v1-bg)':'var(--v1-fg-muted)',border:'none',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em',fontWeight:600}}>
+              save →
+            </button>
+          </div>
+          <div style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em'}}>
+            saved to your browser · no redeploy needed
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({onAuth}){
   const[mode,setMode]=useState('signup'); // 'signin'|'signup' — signup shown first for new visitors
   const[name,setName]=useState('');
@@ -1570,35 +1635,35 @@ function AuthScreen({onAuth}){
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
   const[gsiReady,setGsiReady]=useState(false);
+  const[showGoogleSetup,setShowGoogleSetup]=useState(false);
   const emailRef=useRef(null);
   const gBtnRef=useRef(null);
 
+  const initGSI=useCallback(()=>{
+    const cid=localStorage.getItem('google_client_id')||'';
+    if(!cid||!window.google?.accounts)return;
+    try{
+      window.google.accounts.id.initialize({
+        client_id:cid,
+        callback:(response)=>{
+          const payload=decodeGoogleJwt(response.credential);
+          if(!payload){setError('google sign-in failed — could not decode token');return;}
+          const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
+          if(res.error){setError(res.error);return;}
+          onAuth(res.user);
+        },
+        auto_select:false,cancel_on_tap_outside:true,
+      });
+      setGsiReady(true);
+    }catch(e){}
+  },[onAuth]);
+
   /* initialise Google Identity Services when script loads */
   useEffect(()=>{
-    const init=()=>{
-      if(!window.google||!window.google.accounts){return;}
-      if(GOOGLE_CLIENT_ID.startsWith('YOUR_')){setGsiReady(false);return;}
-      try{
-        window.google.accounts.id.initialize({
-          client_id:GOOGLE_CLIENT_ID,
-          callback:(response)=>{
-            const payload=decodeGoogleJwt(response.credential);
-            if(!payload){setError('google sign-in failed — could not decode token');return;}
-            const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
-            if(res.error){setError(res.error);return;}
-            onAuth(res.user);
-          },
-          auto_select:false,
-          cancel_on_tap_outside:true,
-        });
-        setGsiReady(true);
-      }catch(e){/* GSI not loaded yet */}
-    };
-    /* poll briefly in case script arrives after component mounts */
-    const t=setInterval(()=>{if(window.google?.accounts){init();clearInterval(t);}},300);
-    init();
+    const t=setInterval(()=>{if(window.google?.accounts){initGSI();clearInterval(t);}},300);
+    initGSI();
     return()=>clearInterval(t);
-  },[]);
+  },[initGSI]);
 
   /* render Google button into ref div whenever ready */
   useEffect(()=>{
@@ -1637,12 +1702,21 @@ function AuthScreen({onAuth}){
     }
   };
 
+  const GoogleIcon=()=>(
+    <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      <path fill="none" d="M0 0h48v48H0z"/>
+    </svg>
+  );
+
   const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
-  const focusStyle={borderColor:'var(--v1-accent)'};
 
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
-      {/* grid background already applied by .v1 */}
+      {showGoogleSetup&&<GoogleSetupModal onClose={()=>setShowGoogleSetup(false)} onSave={()=>{setShowGoogleSetup(false);initGSI();}}/>}
 
       {/* logo */}
       <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
@@ -1677,15 +1751,13 @@ function AuthScreen({onAuth}){
             </div>
           ):(
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <button type="button" disabled style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-hover)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
-                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-                  <path fill="none" d="M0 0h48v48H0z"/>
-                </svg>
+              <button type="button" onClick={()=>setShowGoogleSetup(true)}
+                style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'border-color 80ms'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
+                <GoogleIcon/>
                 continue with google
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',marginLeft:4}}>· setup →</span>
               </button>
               <div style={{display:'flex',alignItems:'center',gap:10}}>
                 <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
