@@ -1794,13 +1794,13 @@ function AuthScreen({onAuth}){
       if(!name.trim()){setError('name is required');return;}
       if(password!==confirm){setError('passwords do not match');return;}
       setLoading(true);
-      const res=localAuth.signUp(name,email,password);
+      const res=await localAuth.signUp(name,email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
     }else{
       setLoading(true);
-      const res=localAuth.signIn(email,password);
+      const res=await localAuth.signIn(email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
