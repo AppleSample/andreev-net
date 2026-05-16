@@ -1293,50 +1293,97 @@ function SubjectsDonut({scoped,total}){
   );
 }
 
-function Subjects(){
+const SUBJ_KEY='andreev_subjects';
+function loadSubjects(userId){try{return JSON.parse(localStorage.getItem(SUBJ_KEY+'_'+userId)||'[]');}catch{return[];}}
+function saveSubjects(userId,s){localStorage.setItem(SUBJ_KEY+'_'+userId,JSON.stringify(s));}
+
+function Subjects({sessions=[],user}){
+  const uid=user?.id||'guest';
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
   const[manageOpen,setManageOpen]=useState(false);
-  const[subjs,setSubjs]=useState(()=>D.subjects.map((s,i)=>({...s,color:SUBJ_COLORS[i]||s.color,_idx:i})));
-  const scoped=subjs.map((s,i)=>{const series=subjSeries(i,scope);return{...s,series,total:sumH(series)};});
-  const grand=scoped.reduce((a,s)=>a+s.total,0);
+  const[subjs,setSubjsRaw]=useState(()=>loadSubjects(uid));
+  const[name,setName]=useState('');
+  const[col,setCol]=useState(SUBJ_COLORS[0]);
+
+  const setSubjs=s=>{const next=typeof s==='function'?s(subjs):s;setSubjsRaw(next);saveSubjects(uid,next);};
+
   const sc=SCOPES.find(s=>s.id===scope);
-  const[name,setName]=useState('');const[col,setCol]=useState(SUBJ_COLORS[4]);
+  const cutoff=Date.now()-sc.days*86400000;
+
+  // compute real stats from sessions for each subject
+  const scoped=subjs.map(s=>{
+    const all=sessions.filter(x=>(x.subject||'').toLowerCase()===s.name.toLowerCase());
+    const inScope=all.filter(x=>{try{return new Date(x.date||x.day).getTime()>=cutoff;}catch{return true;}});
+    const totalSecs=inScope.reduce((a,x)=>a+(x.secs||0),0);
+    const totalH=totalSecs/3600;
+    const avgProd=all.length?all.reduce((a,x)=>a+(x.productivity||0),0)/all.length:0;
+    const last=all.length?all[all.length-1]?.day||'never':'never';
+    // build a simple per-day sparkline for the scope window
+    const n=Math.min(sc.n,28);
+    const spark=Array.from({length:n},(_,i)=>{
+      const dayStart=Date.now()-(n-1-i)*86400000;
+      const dayEnd=dayStart+86400000;
+      const h=sessions.filter(x=>{
+        try{const t=new Date(x.date||x.day).getTime();return t>=dayStart&&t<dayEnd&&(x.subject||'').toLowerCase()===s.name.toLowerCase();}catch{return false;}
+      }).reduce((a,x)=>a+(x.secs||0)/3600,0);
+      return h;
+    });
+    return{...s,series:spark,total:totalH,sessions:all.length,productivity:avgProd,lastStudied:last};
+  });
+  const grand=scoped.reduce((a,s)=>a+s.total,0);
+
+  const addSubj=()=>{
+    const n=name.trim().toLowerCase();
+    if(!n)return;
+    if(subjs.find(s=>s.name===n))return;
+    setSubjs(a=>[...a,{id:Date.now(),name:n,color:col}]);
+    setName('');setCol(SUBJ_COLORS[subjs.length%SUBJ_COLORS.length]);
+  };
+
   return(
     <div>
       {scoped.length===0?(
         <Block label="subjects.summary" meta="no subjects yet" action={<button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ add subject</button>}>
-          <EmptyState icon="📚" title="no subjects tracked yet"
-            hint="add subjects you study, then log sessions to see your time breakdown"
+          <EmptyState title="no subjects tracked yet"
+            hint="add subjects you study — stats and charts fill in as you log sessions"
             action={<button onClick={()=>setManageOpen(true)} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>+ add your first subject</button>}
           />
         </Block>
       ):(
         <div>
-          <Block label="subjects.summary" meta={`${scoped.length} subjects · ${fmtHM(grand)} · ${scopeLabel(scope)}`}
+          <Block label="subjects.summary" meta={`${scoped.length} subject${scoped.length!==1?'s':''} · ${fmtHM(grand)} · ${scopeLabel(scope)}`}
             action={<span style={{display:'inline-flex',gap:8,alignItems:'center'}}><ScopePicker scope={scope} onScope={setScope}/><button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ manage</button></span>}>
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
               <KPI k="total" v={fmtHM(grand)} sub={`${sc.label} window`}/>
-              <KPI k="top_subject" v={[...scoped].sort((a,b)=>b.total-a.total)[0].name} sub={fmtHM([...scoped].sort((a,b)=>b.total-a.total)[0].total)} tone="up"/>
-              <KPI k="avg_per_subject" v={fmtHM(grand/Math.max(1,scoped.length))} sub={`${scoped.length} tracked`}/>
-              <KPI k="balance" v={`${Math.round([...scoped].sort((a,b)=>b.total-a.total)[0].total/grand*100)}%`} sub="top subject share"/>
+              {grand>0
+                ?<KPI k="top_subject" v={[...scoped].sort((a,b)=>b.total-a.total)[0].name} sub={fmtHM([...scoped].sort((a,b)=>b.total-a.total)[0].total)} tone="up"/>
+                :<KPI k="top_subject" v="—" sub="no sessions yet"/>}
+              <KPI k="subjects" v={scoped.length} sub="tracked"/>
+              <KPI k="sessions" v={scoped.reduce((a,s)=>a+s.sessions,0)} sub={scopeLabel(scope)}/>
             </div>
           </Block>
           <Block label="subjects.viz" meta={`mode: ${mode}`}
             action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'donut',label:'DONUT',icon:'◯'},{id:'bars',label:'BARS',icon:'▤'},{id:'area',label:'OVER TIME',icon:'▲'}]}/>}>
-            {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
-            {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
-            </div>}
-            {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
+            {grand===0
+              ?<EmptyState title="no hours yet" hint="log a session to see charts"/>
+              :<>
+                {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
+                {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
+                </div>}
+                {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
+              </>
+            }
           </Block>
           <Block label="subjects.table" meta={`per-subject · ${scopeLabel(scope)}`}>
-            <Tbl cols={['','subject','last','sess','prod','trend',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','40px','40px','200px','90px','1fr']}>
-              {scoped.map(s=>{const pct=s.total/grand;return(
-                <Row key={s._idx??s.name}>
+            <Tbl cols={['','subject','sessions','last session','productivity',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','90px','80px','80px','1fr']}>
+              {scoped.map(s=>{const pct=grand>0?s.total/grand:0;return(
+                <Row key={s.id||s.name}>
                   <span style={{width:4,height:18,background:s.color,display:'block'}}/>
-                  <Cell>{s.name}</Cell><Cell mono dim sm>{s.lastStudied}</Cell><Cell mono right dim>{s.sessions}</Cell>
+                  <Cell>{s.name}</Cell>
+                  <Cell mono right dim>{s.sessions}</Cell>
+                  <Cell mono dim sm>{s.lastStudied}</Cell>
                   <Cell mono right tone={s.productivity>=4?'up':'flat'}>{s.productivity?s.productivity.toFixed(1):'—'}</Cell>
-                  <Cell><Spark data={s.series} w={188} h={20} color={s.color} sw={1}/></Cell>
                   <Cell mono right>{fmtHM(s.total)}</Cell>
                   <Cell><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct*100}%`,background:s.color}}/></div><span style={{fontSize:10,color:'var(--v1-fg-muted)',fontVariantNumeric:'tabular-nums',width:30,textAlign:'right'}}>{Math.round(pct*100)}%</span></div></Cell>
                 </Row>
@@ -1345,21 +1392,30 @@ function Subjects(){
           </Block>
         </div>
       )}
-      {manageOpen&&<Modal title="manage_subjects" onClose={()=>setManageOpen(false)} width={520}>
+
+      {manageOpen&&<Modal title="manage_subjects" onClose={()=>setManageOpen(false)} width={480}>
         <div style={{padding:18,borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>+ add new subject</div>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>add new subject</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,alignItems:'center'}}>
-            <Input value={name} onChange={setName} placeholder="e.g. chemistry" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}}/>
+            <Input value={name} onChange={setName} placeholder="e.g. chemistry" autoFocus
+              onKeyDown={e=>{if(e.key==='Enter')addSubj();}}/>
             <div style={{display:'flex',gap:3}}>{SUBJ_COLORS.map(c=><button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,background:c,border:col===c?'2px solid var(--v1-fg)':'1px solid var(--v1-rule)',padding:0,cursor:'pointer'}}/>)}</div>
-            <button disabled={!name.trim()} onClick={()=>{if(name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}} style={{...Btn.sm,background:name.trim()?'var(--v1-accent)':'transparent',color:name.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:name.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:name.trim()?1:0.5}}>add ↵</button>
+            <button disabled={!name.trim()} onClick={addSubj}
+              style={{...Btn.sm,background:name.trim()?'var(--v1-accent)':'transparent',color:name.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:name.trim()?'var(--v1-accent)':'var(--v1-rule)'}}>add ↵</button>
           </div>
         </div>
         <div style={{maxHeight:320,overflow:'auto'}}>
-          {subjs.map((s,i)=><div key={s._idx??s.name} style={{display:'grid',gridTemplateColumns:'4px auto 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
-            <span style={{width:4,height:18,background:s.color}}/><span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
-            <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{s.sessions} sessions · {s.lastStudied}</span>
-            <button onClick={()=>setSubjs(a=>a.filter((_,j)=>j!==i))} style={{...Btn.sm,fontSize:10,padding:'3px 10px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
-          </div>)}
+          {subjs.length===0&&<div style={{padding:'16px 18px',fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>no subjects yet</div>}
+          {subjs.map((s,i)=>(
+            <div key={s.id||s.name} style={{display:'grid',gridTemplateColumns:'10px 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
+              <span style={{width:10,height:10,background:s.color,flexShrink:0}}/>
+              <span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
+              <button onClick={()=>setSubjs(a=>a.filter((_,j)=>j!==i))}
+                style={{...Btn.sm,fontSize:10,padding:'3px 10px'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
+            </div>
+          ))}
         </div>
       </Modal>}
     </div>
