@@ -2459,6 +2459,11 @@ function Shell({user,onLogout}){
   const _hNeeded=Math.max(0,weeklyTarget-thisWkH);
   const _paceDesc=paceVal>=100?`+${(thisWkH-weeklyTarget).toFixed(1)}h · target met`:_daysLeft===1?`${_hNeeded.toFixed(1)}h needed today`:`${(_hNeeded/_daysLeft).toFixed(1)}h/day · ${_daysLeft}d left`;
 
+  // Online friends: updated_at within last 5 minutes
+  const _onlineTs=Date.now();
+  const _totalFriends=leaderboard.filter(u=>!u.isYou).length;
+  const _onlineFriends=leaderboard.filter(u=>!u.isYou&&u.updated_at&&(_onlineTs-new Date(u.updated_at))<5*60*1000).length;
+
   // Real rank from leaderboard
   const _sortedLb=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs);
   const myRankPos=_sortedLb.findIndex(u=>u.isYou);
