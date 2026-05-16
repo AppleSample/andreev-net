@@ -1258,10 +1258,11 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
             if(d===null)return(
               <div key={`e${ci}`} style={{height:90,borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',opacity:0.35}}/>
             );
-            const evts=activeEvtsByDay[d]||[],todos=activeTodosByDay[d]||[];
-            const open=todos.filter(t=>!(ts[t.id]??t.done)).length;
-            const done=todos.filter(t=>(ts[t.id]??t.done)).length;
-            const isTdy=d===today,isSel=sel===d,hasFlag=evts.some(e=>e.flagged);
+            const dateStr=`${calMonth.year}-${String(calMonth.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const evts=activeEvtsByDay[dateStr]||[],todos=activeTodosByDay[dateStr]||[];
+            const open=todos.filter(t=>!todoStates[t.id]).length;
+            const done=todos.filter(t=>todoStates[t.id]).length;
+            const isTdy=isCurrentMonth&&d===today,isSel=sel===d,hasFlag=evts.some(e=>e.flagged);
             return(
               <button key={`d${ci}`} onClick={()=>setSel(d)} style={{height:90,background:isSel?'rgba(79,123,255,0.10)':isTdy?'rgba(79,123,255,0.04)':'transparent',border:'none',borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',borderTop:isTdy?'2px solid var(--v1-accent)':'2px solid transparent',padding:'6px 8px',cursor:'pointer',fontFamily:'var(--v1-mono)',textAlign:'left',display:'flex',flexDirection:'column',gap:4,color:'var(--v1-fg)',position:'relative',transition:'background 80ms'}}
                 onMouseEnter={e=>{if(!isSel&&!isTdy)e.currentTarget.style.background='rgba(79,123,255,0.05)';}}
