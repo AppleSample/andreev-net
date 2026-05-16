@@ -225,6 +225,25 @@ function scopeLabel(s){return({'1d':'today','7d':'this week','30d':'last 30 days
 function userSeries(i,scope){return genSeries(scope,3+i*1.7,1-i*0.06);}
 function subjSeries(i,scope){return genSeries(scope,11+i*2.3,0.5-i*0.07);}
 function sumH(v){return v.reduce((a,x)=>a+x,0);}
+function sessH(s){if(s.secs!=null)return s.secs/3600;const m=s.duration?.match(/(\d+)h\s+(\d+)m/);return m?parseInt(m[1])+parseInt(m[2])/60:0;}
+function computeUserSeries(sessions,scope){
+  const sc=SCOPES.find(s=>s.id===scope);
+  const now=Date.now();
+  const arr=Array(sc.n).fill(0);
+  sessions.forEach(s=>{
+    const h=sessH(s);
+    const ts=new Date(s.created_at||0).getTime();
+    const diffMs=now-ts;
+    let bucket;
+    if(scope==='1d'){const d=Math.floor(diffMs/3600000);if(d<24)bucket=23-d;}
+    else if(scope==='7d'){const d=Math.floor(diffMs/86400000);if(d<7)bucket=6-d;}
+    else if(scope==='30d'){const d=Math.floor(diffMs/86400000);if(d<30)bucket=29-d;}
+    else if(scope==='90d'){const d=Math.floor(diffMs/(7*86400000));if(d<13)bucket=12-d;}
+    else{const dt=new Date(ts);if(dt.getFullYear()===new Date().getFullYear())bucket=dt.getMonth();}
+    if(bucket!=null&&bucket>=0&&bucket<arr.length)arr[bucket]+=h;
+  });
+  return arr;
+}
 function computeSubjectSeries(sessions,subjectName,scope){
   const sc=SCOPES.find(s=>s.id===scope);
   const now=Date.now();
