@@ -2220,7 +2220,7 @@ function Shell({user,onLogout}){
         {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState} subjects={subjects} weekBars={weekBars} thisWkH={thisWkH} leaderboard={leaderboard}/>}
         {screen==='timer'&&<div style={{overflowY:'auto',flex:1,display:'flex',flexDirection:'column'}}><Timer sessionState={sessionState} onPause={handlePause} onCommit={handleCommit} onDiscard={handleDiscard} onStart={handleStartSession} onLogManual={handleLogManual} subjects={subjects}/></div>}
         {screen==='calendar'&&<Calendar subjects={subjects}/>}
-        {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader sessions={sessions} user={user} streak={streak} subjects={subjects}/></div>}
+        {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader sessions={sessions} user={user} streak={streak} subjects={subjects} leaderboard={leaderboard}/></div>}
         {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget} sessions={sessions} heatmap={heatmap} peakHour={peakHour} peakDay={peakDay} activeDays30={activeDays30} thisWkH={thisWkH}/></div>}
         {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects} sessions={sessions}/></div>}
         {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
