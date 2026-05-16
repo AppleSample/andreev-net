@@ -445,7 +445,7 @@ function EmptyState({icon='◇',title,hint,action}){
 }
 
 /* ── DASHBOARD SESSION BLOCK ── */
-function DashSessionBlock({sessionState,onNav}){
+function DashSessionBlock({sessionState,onNav,subjects=[]}){
   const tick=useTick(1000);
   const elapsed=sessionState&&sessionState.active
     ?(sessionState.paused
