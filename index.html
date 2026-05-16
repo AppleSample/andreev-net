@@ -10,8 +10,7 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- netlify-identity loaded dynamically on demand -->
+<script src="https://accounts.google.com/gsi/client" async></script>
 <style>
 @keyframes pblink{0%,49%{opacity:1}50%,100%{opacity:0}}
 @keyframes v1pulse{0%,100%{opacity:1}50%{opacity:0.45}}
@@ -41,152 +40,64 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0A0B0D;}
 const{useState,useEffect,useRef,useMemo,useCallback}=React;
 
 /* ══════════════════════════════════════════════════════════════
-   SUPABASE CONFIG
-   1. Create a free project at https://supabase.com
-   2. Auth → Providers → Email → enable "Email OTP"
-   3. Run this SQL in your Supabase SQL editor:
-
-   create table profiles (id uuid references auth.users primary key, name text not null, created_at timestamptz default now());
-   alter table profiles enable row level security;
-   create policy "read all" on profiles for select using (true);
-   create policy "own insert" on profiles for insert with check (auth.uid()=id);
-   create policy "own update" on profiles for update using (auth.uid()=id);
-
-   create table sessions (id bigserial primary key, user_id uuid references profiles(id) on delete cascade, subject text, duration text, secs int, productivity int, note text, day text, "time" text, color text, created_at timestamptz default now());
-   alter table sessions enable row level security;
-   create policy "own" on sessions for all using (auth.uid()=user_id);
-
-   create table subjects (id bigserial primary key, user_id uuid references profiles(id) on delete cascade, name text, color text);
-   alter table subjects enable row level security;
-   create policy "own" on subjects for all using (auth.uid()=user_id);
-
-   create table friend_requests (id bigserial primary key, from_id uuid references profiles(id) on delete cascade, to_id uuid references profiles(id) on delete cascade, status text default 'pending', created_at timestamptz default now(), unique(from_id,to_id));
-   alter table friend_requests enable row level security;
-   create policy "see own" on friend_requests for select using (auth.uid()=from_id or auth.uid()=to_id);
-   create policy "send" on friend_requests for insert with check (auth.uid()=from_id);
-   create policy "accept" on friend_requests for update using (auth.uid()=to_id);
-
-   4. Paste your Project URL and anon key below:
+   AUTH MODULE — localStorage-backed, Supabase-ready
+   To swap to Supabase: replace signUp / signIn / signOut below
    ══════════════════════════════════════════════════════════════ */
-const SUPA_URL='YOUR_SUPABASE_PROJECT_URL'; // e.g. 'https://abc123.supabase.co'
-const SUPA_KEY='YOUR_SUPABASE_ANON_KEY';
-const _sb=(typeof supabase!=='undefined'&&SUPA_URL.startsWith('https://')&&!SUPA_URL.includes('YOUR_'))
-  ?supabase.createClient(SUPA_URL,SUPA_KEY):null;
-
-/* ── Supabase data/auth API (only used when _sb is configured) ── */
-const sbAPI={
-  async sendOTP(email){
-    const{error}=await _sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
-    return error?{error:error.message}:{ok:true};
-  },
-  async verifyOTP(email,token,name){
-    const{data,error}=await _sb.auth.verifyOtp({email,token,type:'email'});
-    if(error)return{error:error.message};
-    const u=data.user;
-    // upsert profile (create if new user)
-    const{data:existing}=await _sb.from('profiles').select('name').eq('id',u.id).single();
-    if(!existing){
-      const displayName=name||(u.user_metadata?.name)||u.email.split('@')[0];
-      await _sb.from('profiles').insert({id:u.id,name:displayName});
-      return{user:{id:u.id,email:u.email,name:displayName}};
-    }
-    return{user:{id:u.id,email:u.email,name:existing.name}};
-  },
-  async getSession(){
-    const{data}=await _sb.auth.getSession();
-    if(!data?.session)return null;
-    const u=data.session.user;
-    const{data:p}=await _sb.from('profiles').select('name').eq('id',u.id).single();
-    return{id:u.id,email:u.email,name:p?.name||u.email.split('@')[0]};
-  },
-  async signOut(){await _sb.auth.signOut();},
-  async loadSessions(userId){
-    const{data}=await _sb.from('sessions').select('*').eq('user_id',userId).order('created_at',{ascending:false});
-    return data||[];
-  },
-  async addSession(userId,s){
-    await _sb.from('sessions').insert({user_id:userId,...s});
-  },
-  async loadSubjects(userId){
-    const{data}=await _sb.from('subjects').select('*').eq('user_id',userId);
-    return data||[];
-  },
-  async addSubject(userId,s){
-    const{data}=await _sb.from('subjects').insert({user_id:userId,name:s.name,color:s.color}).select().single();
-    return data;
-  },
-  async deleteSubject(id){await _sb.from('subjects').delete().eq('id',id);},
-  async searchProfiles(query,currentUserId){
-    const q=query.trim();
-    const{data:byName}=await _sb.from('profiles').select('id,name').ilike('name',`%${q}%`).neq('id',currentUserId).limit(8);
-    return byName||[];
-  },
-  async sendFriendRequest(fromId,toId){
-    const{error}=await _sb.from('friend_requests').insert({from_id:fromId,to_id:toId});
-    return error?{error:error.message}:{ok:true};
-  },
-  async getPendingRequests(userId){
-    const{data}=await _sb.from('friend_requests').select('id,from_id').eq('to_id',userId).eq('status','pending');
-    if(!data?.length)return[];
-    const fromIds=data.map(r=>r.from_id);
-    const{data:profiles}=await _sb.from('profiles').select('id,name').in('id',fromIds);
-    const pm=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));
-    return data.map(r=>({id:r.id,from:r.from_id,fromName:pm[r.from_id]?.name||'unknown'}));
-  },
-  async acceptRequest(reqId,myId,fromId){
-    await _sb.from('friend_requests').update({status:'accepted'}).eq('id',reqId);
-  },
-  async declineRequest(reqId){
-    await _sb.from('friend_requests').delete().eq('id',reqId);
-  },
-  async getFriends(userId){
-    const{data}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${userId},to_id.eq.${userId}`).eq('status','accepted');
-    if(!data?.length)return[];
-    const ids=data.map(r=>r.from_id===userId?r.to_id:r.from_id);
-    const{data:profiles}=await _sb.from('profiles').select('id,name').in('id',ids);
-    return profiles||[];
-  }
-};
-
-/* ══════════════════════════════════════════════════════════════
-   LOCAL AUTH — password-based fallback (used when Supabase not configured)
-   ══════════════════════════════════════════════════════════════ */
-
-/* ── local auth (email/password, SHA-256 hashed) ── */
-async function _sha256(str){
-  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(str));
-  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-const localAuth={
-  _key:'andreev_users', _sessionKey:'andreev_session',
+const auth={
+  _key:'andreev_users',
+  _sessionKey:'andreev_session',
   _users(){try{return JSON.parse(localStorage.getItem(this._key)||'[]');}catch{return[];}},
-  _save(u){localStorage.setItem(this._key,JSON.stringify(u));},
-  getSession(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
-  saveSession(u){localStorage.setItem(this._sessionKey,JSON.stringify(u));},
-  clearSession(){localStorage.removeItem(this._sessionKey);},
-  async signUp(name,email,password){
+  _save(users){localStorage.setItem(this._key,JSON.stringify(users));},
+  getUser(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
+  signUp(name,email,password){
     const users=this._users();
-    if(users.find(u=>u.email.toLowerCase()===email.toLowerCase())) return{error:'account already exists with this email'};
+    if(users.find(u=>u.email.toLowerCase()===email.toLowerCase()))
+      return{error:'an account with this email already exists'};
     if(password.length<6) return{error:'password must be at least 6 characters'};
-    const hash=await _sha256(password+'::'+email.toLowerCase());
-    const u={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),hash,createdAt:new Date().toISOString()};
-    this._save([...users,u]);
-    const s={id:u.id,name:u.name,email:u.email};
-    this.saveSession(s);return{user:s};
+    const user={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),password,createdAt:new Date().toISOString()};
+    this._save([...users,user]);
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
   },
-  async signIn(email,password){
-    const u=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
-    if(!u) return{error:'no account found with that email'};
-    const hash=await _sha256(password+'::'+email.trim().toLowerCase());
-    // support both old plain-text and new hashed passwords
-    const match=u.hash?u.hash===hash:u.password===password;
-    if(!match) return{error:'incorrect password'};
-    // migrate plain-text to hashed on successful sign-in
-    if(!u.hash){const all=this._users();const idx=all.findIndex(x=>x.id===u.id);if(idx>=0){all[idx]={...all[idx],hash,password:undefined};this._save(all);}}
-    const s={id:u.id,name:u.name,email:u.email};
-    this.saveSession(s);return{user:s};
+  signIn(email,password){
+    const user=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    if(!user) return{error:'no account found with that email'};
+    if(user.password!==password) return{error:'incorrect password'};
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
+  },
+  signOut(){localStorage.removeItem(this._sessionKey);},
+  signInWithGoogle(googleData){
+    /* googleData: {id, name, email} — extracted from GSI JWT */
+    const users=this._users();
+    let user=users.find(u=>u.email.toLowerCase()===googleData.email.toLowerCase());
+    if(!user){
+      user={id:googleData.id||Date.now().toString(),name:googleData.name,email:googleData.email.toLowerCase(),provider:'google',createdAt:new Date().toISOString()};
+      this._save([...users,user]);
+    }
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
   },
 };
+
+/* ── GOOGLE OAUTH CONFIG ──
+   Client ID is read from localStorage so you can set it without redeploying.
+   To activate Google Sign-In, paste your Client ID in the setup modal on the auth screen.
+   Get one at: console.cloud.google.com → APIs & Services → Credentials → OAuth 2.0 Client ID
+   Authorised JS origins: https://andreev-net.netlify.app AND http://localhost:7823 */
+const GOOGLE_CLIENT_ID=(()=>{
+  try{return localStorage.getItem('google_client_id')||'';}catch{return '';}
+})();
+
+function decodeGoogleJwt(token){
+  try{
+    const b64=token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(b64));
+  }catch{return null;}
+}
 
 /* ── DATA ── */
 const _now=new Date();
@@ -211,11 +122,11 @@ const D={
 
 /* ── SCOPE SYSTEM ── */
 const SCOPES=[
-  {id:'1d', label:'1D', n:24,days:1,  x:i=>String(i).padStart(2,'0'),      unit:'hour'},
-  {id:'7d', label:'7D', n:7, days:7,  x:i=>['mon','tue','wed','thu','fri','sat','sun'][i],unit:'day'},
-  {id:'30d',label:'30D',n:30,days:30, x:i=>`${i+1}`,                       unit:'day'},
-  {id:'90d',label:'90D',n:13,days:90, x:i=>`w${i+1}`,                      unit:'week'},
-  {id:'all',label:'ALL',n:12,days:365,x:i=>['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][i],unit:'month'},
+  {id:'1d', label:'1D', n:24,x:i=>String(i).padStart(2,'0'),      unit:'hour'},
+  {id:'7d', label:'7D', n:7, x:i=>['mon','tue','wed','thu','fri','sat','sun'][i],unit:'day'},
+  {id:'30d',label:'30D',n:30,x:i=>`${i+1}`,                       unit:'day'},
+  {id:'90d',label:'90D',n:13,x:i=>`w${i+1}`,                      unit:'week'},
+  {id:'all',label:'ALL',n:12,x:i=>['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][i],unit:'month'},
 ];
 const SCOPE_BASE={'1d':0.18,'7d':3.0,'30d':2.6,'90d':18,'all':76};
 const SUBJ_COLORS=['#4F7BFF','#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A'];
@@ -263,6 +174,7 @@ function Block({label,meta,action,children,pad='18px 18px 22px',noBorder}){
   return(
     <section style={{borderBottom:noBorder?'none':'1px solid var(--v1-rule)'}}>
       <header style={{display:'flex',alignItems:'center',gap:12,padding:'10px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+        <span style={{color:'var(--v1-accent)'}}>◆</span>
         <span style={{color:'var(--v1-fg-2)'}}>{label}</span>
         {meta&&<span>· {meta}</span>}
         <span style={{flex:1}}/>
@@ -374,7 +286,7 @@ function Modal({title,onClose,children,width=520}){
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(5,6,8,0.75)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:width,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 24px 60px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-          <span style={{color:'var(--v1-fg-2)'}}>{title}</span><span style={{flex:1}}/>
+          <span style={{color:'var(--v1-accent)'}}>◆</span><span style={{color:'var(--v1-fg-2)'}}>{title}</span><span style={{flex:1}}/>
           <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
         </div>
         <div>{children}</div>
@@ -499,7 +411,7 @@ function DashAgenda({onNav}){
   const next=evts.find(e=>e.time>'14:32')||evts[evts.length-1];
   if(evts.length===0&&todos.length===0){
     return(
-      <EmptyState icon="+" title="no events or tasks today"
+      <EmptyState icon="📅" title="no events or tasks today"
         hint="add events and todos to the calendar to see your day here"
         action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
       />
@@ -560,7 +472,7 @@ function DashAgendaCompact({onNav}){
   const next=evts.find(e=>e.time>'14:32')||evts[evts.length-1];
   if(evts.length===0&&todos.length===0){
     return(
-      <EmptyState icon="+" title="no events or tasks today"
+      <EmptyState icon="📅" title="no events or tasks today"
         hint="add events and todos to the calendar to see your day here"
         action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
       />
@@ -624,7 +536,7 @@ function Dashboard({onNav,sessions,sessionState}){
           ? <DashSessionHero sessionState={sessionState} onNav={onNav}/>
           : <Block label="this_week.hours" meta="δ vs prior week">
               {secsThisWeek===0?(
-                <EmptyState icon="+" title="no study hours yet this week"
+                <EmptyState icon="⏱" title="no study hours yet this week"
                   hint="start your first session to begin tracking"
                   action={<button onClick={()=>onNav('timer')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>begin session →</button>}
                 />
@@ -645,7 +557,7 @@ function Dashboard({onNav,sessions,sessionState}){
         </Block>
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
           {D.leaderboard.length<=1?(
-            <EmptyState icon="+" title="you're the only one here"
+            <EmptyState icon="👥" title="you're the only one here"
               hint="invite friends to study together and compete on the leaderboard"
             />
           ):(()=>{
@@ -775,8 +687,8 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual}){
         <div style={{width:'100%',maxWidth:480}}>
           {/* mode tabs */}
           <div style={{display:'flex',marginBottom:24}}>
-            <ModeBtn id="timer" label="start timer"/>
-            <ModeBtn id="log" label="log manually"/>
+            <ModeBtn id="timer" label="⏱ start timer"/>
+            <ModeBtn id="log" label="✎ log manually"/>
           </div>
 
           {mode==='timer'&&(
@@ -1032,6 +944,7 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
       <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:600,maxHeight:'80vh',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 32px 80px rgba(0,0,0,0.7)',overflow:'hidden'}}>
         {/* Modal header */}
         <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',flexShrink:0}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
           <div>
             <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{DOWL[dow]} · {monthLabel||D.today.month}</div>
             <div style={{fontFamily:'var(--v1-mono)',fontSize:32,lineHeight:1,letterSpacing:'-0.04em',color:sel===today?'var(--v1-accent)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums'}}>{String(sel).padStart(2,'0')}</div>
@@ -1160,6 +1073,7 @@ function Calendar(){
       {/* Full-width month grid */}
       <div style={{flex:1,minHeight:0,overflowY:'auto'}}>
         <header style={{display:'flex',alignItems:'center',gap:12,padding:'10px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',position:'sticky',top:0,zIndex:10}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
           <span style={{color:'var(--v1-fg-2)'}}>{monthName.toLowerCase()}</span>
           <span style={{flex:1}}/>
           <button onClick={prevMonth} style={Btn.sm}>‹</button>
@@ -1220,7 +1134,7 @@ function Leader(){
   if(D.leaderboard.length<=1){
     return(
       <Block label="rank.leaderboard" meta="ranked by hours">
-        <EmptyState icon="+" title="leaderboard is empty"
+        <EmptyState icon="🏆" title="leaderboard is empty"
           hint="invite study partners to compete — rankings appear once you have friends"
         />
       </Block>
@@ -1408,115 +1322,50 @@ function SubjectsDonut({scoped,total}){
   );
 }
 
-const SUBJ_KEY='andreev_subjects';
-function loadSubjectsLocal(userId){try{return JSON.parse(localStorage.getItem(SUBJ_KEY+'_'+userId)||'[]');}catch{return[];}}
-function saveSubjectsLocal(userId,s){localStorage.setItem(SUBJ_KEY+'_'+userId,JSON.stringify(s));}
-
-function Subjects({sessions=[],user}){
-  const uid=user?.id||'guest';
-  const useSupa=!!_sb&&!!user?.id;
+function Subjects(){
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
   const[manageOpen,setManageOpen]=useState(false);
-  const[subjs,setSubjsRaw]=useState(()=>useSupa?[]:loadSubjectsLocal(uid));
-  const[name,setName]=useState('');
-  const[col,setCol]=useState(SUBJ_COLORS[0]);
-
-  // Load from Supabase on mount
-  useEffect(()=>{
-    if(!useSupa)return;
-    sbAPI.loadSubjects(uid).then(data=>{
-      if(data)setSubjsRaw(data.map(s=>({id:s.id,name:s.name,color:s.color})));
-    }).catch(()=>{});
-  },[uid,useSupa]);
-
-  const setSubjs=s=>{
-    const next=typeof s==='function'?s(subjs):s;
-    setSubjsRaw(next);
-    if(!useSupa)saveSubjectsLocal(uid,next);
-  };
-
-  const sc=SCOPES.find(s=>s.id===scope);
-  const cutoff=Date.now()-sc.days*86400000;
-
-  // compute real stats from sessions for each subject
-  const scoped=subjs.map(s=>{
-    const all=sessions.filter(x=>(x.subject||'').toLowerCase()===s.name.toLowerCase());
-    const inScope=all.filter(x=>{try{return new Date(x.date||x.day).getTime()>=cutoff;}catch{return true;}});
-    const totalSecs=inScope.reduce((a,x)=>a+(x.secs||0),0);
-    const totalH=totalSecs/3600;
-    const avgProd=all.length?all.reduce((a,x)=>a+(x.productivity||0),0)/all.length:0;
-    const last=all.length?all[all.length-1]?.day||'never':'never';
-    // build a simple per-day sparkline for the scope window
-    const n=Math.min(sc.n,28);
-    const spark=Array.from({length:n},(_,i)=>{
-      const dayStart=Date.now()-(n-1-i)*86400000;
-      const dayEnd=dayStart+86400000;
-      const h=sessions.filter(x=>{
-        try{const t=new Date(x.date||x.day).getTime();return t>=dayStart&&t<dayEnd&&(x.subject||'').toLowerCase()===s.name.toLowerCase();}catch{return false;}
-      }).reduce((a,x)=>a+(x.secs||0)/3600,0);
-      return h;
-    });
-    return{...s,series:spark,total:totalH,sessions:all.length,productivity:avgProd,lastStudied:last};
-  });
+  const[subjs,setSubjs]=useState(()=>D.subjects.map((s,i)=>({...s,color:SUBJ_COLORS[i]||s.color,_idx:i})));
+  const scoped=subjs.map((s,i)=>{const series=subjSeries(i,scope);return{...s,series,total:sumH(series)};});
   const grand=scoped.reduce((a,s)=>a+s.total,0);
-
-  const addSubj=async()=>{
-    const n=name.trim().toLowerCase();
-    if(!n)return;
-    if(subjs.find(s=>s.name===n))return;
-    if(useSupa){
-      const saved=await sbAPI.addSubject(uid,{name:n,color:col});
-      if(saved)setSubjsRaw(a=>[...a,{id:saved.id,name:saved.name,color:saved.color}]);
-    }else{
-      setSubjs(a=>[...a,{id:Date.now(),name:n,color:col}]);
-    }
-    setName('');setCol(SUBJ_COLORS[subjs.length%SUBJ_COLORS.length]);
-  };
-
+  const sc=SCOPES.find(s=>s.id===scope);
+  const[name,setName]=useState('');const[col,setCol]=useState(SUBJ_COLORS[4]);
   return(
     <div>
       {scoped.length===0?(
         <Block label="subjects.summary" meta="no subjects yet" action={<button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ add subject</button>}>
-          <EmptyState title="no subjects tracked yet"
-            hint="add subjects you study — stats and charts fill in as you log sessions"
+          <EmptyState icon="📚" title="no subjects tracked yet"
+            hint="add subjects you study, then log sessions to see your time breakdown"
             action={<button onClick={()=>setManageOpen(true)} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>+ add your first subject</button>}
           />
         </Block>
       ):(
         <div>
-          <Block label="subjects.summary" meta={`${scoped.length} subject${scoped.length!==1?'s':''} · ${fmtHM(grand)} · ${scopeLabel(scope)}`}
+          <Block label="subjects.summary" meta={`${scoped.length} subjects · ${fmtHM(grand)} · ${scopeLabel(scope)}`}
             action={<span style={{display:'inline-flex',gap:8,alignItems:'center'}}><ScopePicker scope={scope} onScope={setScope}/><button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ manage</button></span>}>
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
               <KPI k="total" v={fmtHM(grand)} sub={`${sc.label} window`}/>
-              {grand>0
-                ?<KPI k="top_subject" v={[...scoped].sort((a,b)=>b.total-a.total)[0].name} sub={fmtHM([...scoped].sort((a,b)=>b.total-a.total)[0].total)} tone="up"/>
-                :<KPI k="top_subject" v="—" sub="no sessions yet"/>}
-              <KPI k="subjects" v={scoped.length} sub="tracked"/>
-              <KPI k="sessions" v={scoped.reduce((a,s)=>a+s.sessions,0)} sub={scopeLabel(scope)}/>
+              <KPI k="top_subject" v={[...scoped].sort((a,b)=>b.total-a.total)[0].name} sub={fmtHM([...scoped].sort((a,b)=>b.total-a.total)[0].total)} tone="up"/>
+              <KPI k="avg_per_subject" v={fmtHM(grand/Math.max(1,scoped.length))} sub={`${scoped.length} tracked`}/>
+              <KPI k="balance" v={`${Math.round([...scoped].sort((a,b)=>b.total-a.total)[0].total/grand*100)}%`} sub="top subject share"/>
             </div>
           </Block>
           <Block label="subjects.viz" meta={`mode: ${mode}`}
             action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'donut',label:'DONUT',icon:'◯'},{id:'bars',label:'BARS',icon:'▤'},{id:'area',label:'OVER TIME',icon:'▲'}]}/>}>
-            {grand===0
-              ?<EmptyState title="no hours yet" hint="log a session to see charts"/>
-              :<>
-                {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
-                {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
-                </div>}
-                {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
-              </>
-            }
+            {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
+            {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
+            </div>}
+            {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
           </Block>
           <Block label="subjects.table" meta={`per-subject · ${scopeLabel(scope)}`}>
-            <Tbl cols={['','subject','sessions','last session','productivity',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','90px','80px','80px','1fr']}>
-              {scoped.map(s=>{const pct=grand>0?s.total/grand:0;return(
-                <Row key={s.id||s.name}>
+            <Tbl cols={['','subject','last','sess','prod','trend',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','40px','40px','200px','90px','1fr']}>
+              {scoped.map(s=>{const pct=s.total/grand;return(
+                <Row key={s._idx??s.name}>
                   <span style={{width:4,height:18,background:s.color,display:'block'}}/>
-                  <Cell>{s.name}</Cell>
-                  <Cell mono right dim>{s.sessions}</Cell>
-                  <Cell mono dim sm>{s.lastStudied}</Cell>
+                  <Cell>{s.name}</Cell><Cell mono dim sm>{s.lastStudied}</Cell><Cell mono right dim>{s.sessions}</Cell>
                   <Cell mono right tone={s.productivity>=4?'up':'flat'}>{s.productivity?s.productivity.toFixed(1):'—'}</Cell>
+                  <Cell><Spark data={s.series} w={188} h={20} color={s.color} sw={1}/></Cell>
                   <Cell mono right>{fmtHM(s.total)}</Cell>
                   <Cell><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct*100}%`,background:s.color}}/></div><span style={{fontSize:10,color:'var(--v1-fg-muted)',fontVariantNumeric:'tabular-nums',width:30,textAlign:'right'}}>{Math.round(pct*100)}%</span></div></Cell>
                 </Row>
@@ -1525,30 +1374,21 @@ function Subjects({sessions=[],user}){
           </Block>
         </div>
       )}
-
-      {manageOpen&&<Modal title="manage_subjects" onClose={()=>setManageOpen(false)} width={480}>
+      {manageOpen&&<Modal title="manage_subjects" onClose={()=>setManageOpen(false)} width={520}>
         <div style={{padding:18,borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>add new subject</div>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>+ add new subject</div>
           <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,alignItems:'center'}}>
-            <Input value={name} onChange={setName} placeholder="e.g. chemistry" autoFocus
-              onKeyDown={e=>{if(e.key==='Enter')addSubj();}}/>
+            <Input value={name} onChange={setName} placeholder="e.g. chemistry" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}}/>
             <div style={{display:'flex',gap:3}}>{SUBJ_COLORS.map(c=><button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,background:c,border:col===c?'2px solid var(--v1-fg)':'1px solid var(--v1-rule)',padding:0,cursor:'pointer'}}/>)}</div>
-            <button disabled={!name.trim()} onClick={addSubj}
-              style={{...Btn.sm,background:name.trim()?'var(--v1-accent)':'transparent',color:name.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:name.trim()?'var(--v1-accent)':'var(--v1-rule)'}}>add ↵</button>
+            <button disabled={!name.trim()} onClick={()=>{if(name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}} style={{...Btn.sm,background:name.trim()?'var(--v1-accent)':'transparent',color:name.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:name.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:name.trim()?1:0.5}}>add ↵</button>
           </div>
         </div>
         <div style={{maxHeight:320,overflow:'auto'}}>
-          {subjs.length===0&&<div style={{padding:'16px 18px',fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>no subjects yet</div>}
-          {subjs.map((s,i)=>(
-            <div key={s.id||s.name} style={{display:'grid',gridTemplateColumns:'10px 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
-              <span style={{width:10,height:10,background:s.color,flexShrink:0}}/>
-              <span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
-              <button onClick={()=>{if(useSupa&&s.id)sbAPI.deleteSubject(s.id).catch(()=>{});setSubjs(a=>a.filter((_,j)=>j!==i));}}
-                style={{...Btn.sm,fontSize:10,padding:'3px 10px'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
-            </div>
-          ))}
+          {subjs.map((s,i)=><div key={s._idx??s.name} style={{display:'grid',gridTemplateColumns:'4px auto 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
+            <span style={{width:4,height:18,background:s.color}}/><span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{s.sessions} sessions · {s.lastStudied}</span>
+            <button onClick={()=>setSubjs(a=>a.filter((_,j)=>j!==i))} style={{...Btn.sm,fontSize:10,padding:'3px 10px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
+          </div>)}
         </div>
       </Modal>}
     </div>
@@ -1556,328 +1396,167 @@ function Subjects({sessions=[],user}){
 }
 
 /* ── NETWORK ── */
-const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
-
-/* localStorage helpers for when Supabase is not configured */
-function getFriendData(uid){try{return JSON.parse(localStorage.getItem('andreev_fd_'+uid)||'{"friends":[],"requests":[]}')}catch{return{friends:[],requests:[]};}}
-function setFriendData(uid,d){localStorage.setItem('andreev_fd_'+uid,JSON.stringify(d));}
-
-function Friend({user}){
-  const uid=user?.id;
-  const useSupa=!!_sb;
-
-  // ── local state ──
-  const[localData,setLocalDataRaw]=useState(()=>getFriendData(uid));
-  const[supaFriends,setSupaFriends]=useState([]);
-  const[supaRequests,setSupaRequests]=useState([]);
-  const[query,setQuery]=useState('');
-  const[searchResults,setSearchResults]=useState([]); // array of {id,name} from Supabase
-  const[searchResult,setSearchResult]=useState(null); // {sent,notFound,found} for local flow
-  const[error,setError]=useState('');
-  const[searching,setSearching]=useState(false);
-  const inputRef=useRef(null);
-
-  const setLocalData=d=>{setLocalDataRaw(d);setFriendData(uid,d);};
-
-  // ── load Supabase data on mount ──
-  useEffect(()=>{
-    if(!useSupa||!uid)return;
-    sbAPI.getFriends(uid).then(setSupaFriends).catch(()=>{});
-    sbAPI.getPendingRequests(uid).then(setSupaRequests).catch(()=>{});
-  },[uid,useSupa]);
-
-  // ── reload local data when user changes ──
-  useEffect(()=>{if(!useSupa)setLocalDataRaw(getFriendData(uid));},[uid,useSupa]);
-
-  const incoming=useSupa?supaRequests:(localData.requests||[]);
-  const friends=useSupa?supaFriends:(localData.friends||[]);
-
-  // ── SUPABASE search ──
-  const searchSupa=async()=>{
-    const q=query.trim();
-    if(!q){setError('enter a name to search');return;}
-    setSearching(true);setSearchResults([]);setError('');
-    const results=await sbAPI.searchProfiles(q,uid);
-    setSearching(false);
-    if(results.length===0){setError(`no users found for "${q}" — they need to sign up first`);return;}
-    setSearchResults(results);
-  };
-
-  const sendSupaRequest=async(target)=>{
-    setError('');
-    const res=await sbAPI.sendFriendRequest(uid,target.id);
-    if(res.error){setError(res.error);return;}
-    setSearchResults([]);setQuery('');
-    setError('');
-    // show sent confirmation
-    setSearchResult({sent:target.name});
-  };
-
-  const acceptSupaRequest=async(req)=>{
-    await sbAPI.acceptRequest(req.id,uid,req.from);
-    setSupaRequests(r=>r.filter(x=>x.id!==req.id));
-    // reload friends
-    sbAPI.getFriends(uid).then(setSupaFriends);
-  };
-
-  const declineSupaRequest=async(req)=>{
-    await sbAPI.declineRequest(req.id);
-    setSupaRequests(r=>r.filter(x=>x.id!==req.id));
-  };
-
-  // ── LOCAL search ──
-  const searchLocal=()=>{
-    const q=query.trim().toLowerCase();
-    if(!q){setError('enter a name or email');return;}
-    const allUsers=localAuth._users();
-    const found=allUsers.find(u=>
-      (u.name.toLowerCase()===q||u.email.toLowerCase()===q||u.name.toLowerCase().includes(q))
-      &&u.id!==uid
+function Friend(){
+  const[scope,setScope]=useState('7d');
+  const others=D.leaderboard.filter(u=>!u.isYou);
+  if(others.length===0){
+    return(
+      <Block label="network.members" meta="1 member">
+        <EmptyState icon="🤝" title="no study partners yet"
+          hint="once friends join and connect, you'll see head-to-head comparisons and live activity here"
+        />
+      </Block>
     );
-    if(!found){
-      setSearchResult({notFound:query.trim()});setError('');return;
-    }
-    const lf=localData.friends||[];
-    if(lf.find(f=>f.id===found.id)){setError('already friends');return;}
-    const recipData=getFriendData(found.id);
-    if(recipData.requests?.find(r=>r.from===uid)){setError('request already sent');return;}
-    setSearchResult({found});setError('');
-  };
-
-  const sendLocalRequest=foundUser=>{
-    const recipData=getFriendData(foundUser.id);
-    const req={from:uid,fromName:user.name,fromEmail:user.email,sentAt:Date.now()};
-    recipData.requests=[...(recipData.requests||[]).filter(r=>r.from!==uid),req];
-    setFriendData(foundUser.id,recipData);
-    setSearchResult({sent:foundUser.name});setQuery('');setError('');
-  };
-
-  const acceptLocalRequest=req=>{
-    const color=FRIEND_COLORS[friends.length%FRIEND_COLORS.length];
-    const myNext={friends:[...(localData.friends||[]),{id:req.from,name:req.fromName,email:req.fromEmail,color}],requests:(localData.requests||[]).filter(r=>r.from!==req.from)};
-    setLocalData(myNext);
-    const sender=localAuth._users().find(u=>u.id===req.from);
-    if(sender){
-      const theirData=getFriendData(sender.id);
-      const myColor=FRIEND_COLORS[(theirData.friends||[]).length%FRIEND_COLORS.length];
-      theirData.friends=[...(theirData.friends||[]).filter(f=>f.id!==uid),{id:uid,name:user.name,email:user.email,color:myColor}];
-      setFriendData(sender.id,theirData);
-    }
-  };
-
-  const declineLocalRequest=req=>setLocalData({...localData,requests:(localData.requests||[]).filter(r=>r.from!==req.from)});
-  const removeLocalFriend=fid=>setLocalData({...localData,friends:(localData.friends||[]).filter(f=>f.id!==fid)});
-
-  const fieldStyle={flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 10px',outline:'none'};
-
+  }
+  const[frName,setFrName]=useState(others[0].name);
+  const[open,setOpen]=useState(false);
+  const friend=others.find(u=>u.name===frName)||others[0];
+  const frIdx=D.leaderboard.findIndex(u=>u.name===frName);
+  const meSeries=userSeries(0,scope),frSeries=userSeries(frIdx,scope);
+  const meTotal=sumH(meSeries),frTotal=sumH(frSeries);
+  const chartSeries=[
+    {name:'you',color:'var(--v1-accent)',values:meSeries,fill:true},
+    {name:friend.name,color:friend.color,values:frSeries,dim:true},
+  ];
   return(
     <div>
-      {/* pending requests */}
-      {incoming.length>0&&(
-        <Block label="network.requests" meta={`${incoming.length} pending`}>
-          {incoming.map((req,i)=>(
-            <div key={req.id||req.from} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 0',borderBottom:i<incoming.length-1?'1px solid var(--v1-rule)':'none'}}>
-              <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{req.fromName||req.from} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{req.fromEmail?`(${req.fromEmail})`:''}</span> wants to connect</span>
-              <button onClick={()=>useSupa?acceptSupaRequest(req):acceptLocalRequest(req)}
-                style={{...Btn.sm,background:'var(--v1-up)',color:'var(--v1-bg)',borderColor:'var(--v1-up)',padding:'4px 12px',fontWeight:600}}>accept</button>
-              <button onClick={()=>useSupa?declineSupaRequest(req):declineLocalRequest(req)}
-                style={{...Btn.sm,padding:'4px 10px'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>decline</button>
-            </div>
-          ))}
-        </Block>
-      )}
-
-      {/* add friend */}
-      <Block label="network.add" meta={useSupa?"find by name":"find by name or email"}>
-        {!useSupa&&<div style={{padding:'6px 0 10px',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>note: friends must have an account on this device · set up Supabase for cross-device search</div>}
-        <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:12}}>
-          <input ref={inputRef} value={query} onChange={e=>{setQuery(e.target.value);setSearchResults([]);setSearchResult(null);setError('');}}
-            placeholder={useSupa?"search by name…":"search by name or email…"}
-            style={fieldStyle}
-            onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
-            onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
-            onKeyDown={e=>{if(e.key==='Enter')useSupa?searchSupa():searchLocal();}}
-          />
-          <button onClick={useSupa?searchSupa:searchLocal} disabled={searching}
-            style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',padding:'8px 16px',flexShrink:0,fontWeight:600,opacity:searching?0.7:1}}>
-            {searching?'…':'search →'}
-          </button>
+      <Block label="network.compare" meta="head-to-head trend overlay" action={<ScopePicker scope={scope} onScope={setScope}/>}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)',marginBottom:18}}>
+          <KPI k="your_hours" v={fmtHM(meTotal)} sub={scopeLabel(scope)} tone="flat"/>
+          <KPI k={`${friend.name}_hours`} v={fmtHM(frTotal)} sub={scopeLabel(scope)}/>
+          <KPI k="lead" v={`${meTotal>=frTotal?'+':'−'}${fmtHM(Math.abs(meTotal-frTotal))}`} sub={`vs ${friend.name}`} tone={meTotal>=frTotal?'up':'down'}/>
+          <KPI k="comparing_vs" v={friend.name} sub={`streak ${friend.streak}d`}/>
         </div>
-
-        {error&&<div style={{fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)',marginBottom:8}}>✕ {error}</div>}
-
-        {searchResult?.sent&&<div style={{padding:'10px 14px',background:'rgba(107,216,154,0.08)',border:'1px solid var(--v1-up)',fontSize:11,color:'var(--v1-up)',fontFamily:'var(--v1-mono)'}}>✓ friend request sent to {searchResult.sent}</div>}
-        {searchResult?.notFound&&<div style={{padding:'10px 14px',background:'rgba(229,72,77,0.07)',border:'1px solid var(--v1-down)',fontSize:11,color:'var(--v1-down)',fontFamily:'var(--v1-mono)'}}>✕ no user found for "{searchResult.notFound}" — they need to create an account on this device first</div>}
-        {searchResult?.found&&<div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'rgba(79,123,255,0.06)',border:'1px solid var(--v1-rule-strong)'}}>
-          <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{searchResult.found.name} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>({searchResult.found.email})</span></span>
-          <button onClick={()=>sendLocalRequest(searchResult.found)} style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600}}>send request →</button>
-        </div>}
-
-        {/* Supabase results list */}
-        {searchResults.length>0&&(
-          <div style={{border:'1px solid var(--v1-rule-strong)'}}>
-            {searchResults.map((u,i)=>(
-              <div key={u.id} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',borderBottom:i<searchResults.length-1?'1px solid var(--v1-rule)':'none',background:'rgba(79,123,255,0.04)'}}>
-                <span style={{flex:1,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{u.name}</span>
-                <button onClick={()=>sendSupaRequest(u)} style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',fontWeight:600,padding:'4px 12px'}}>add →</button>
-              </div>
-            ))}
+        <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.16em',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>compare vs</span>
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setOpen(p=>!p)} style={{...Btn.sm,display:'inline-flex',alignItems:'center',gap:8}}>
+              <span style={{width:8,height:8,background:friend.color}}/><span style={{color:'var(--v1-fg)'}}>{friend.name}</span><span style={{color:'var(--v1-fg-muted)'}}>▾</span>
+            </button>
+            {open&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:30,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',minWidth:160,boxShadow:'0 12px 30px rgba(0,0,0,0.5)'}}>
+              {others.map(u=><button key={u.name} onClick={()=>{setFrName(u.name);setOpen(false);}} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',background:u.name===frName?'rgba(79,123,255,0.1)':'transparent',border:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',textAlign:'left'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.08)'} onMouseLeave={e=>e.currentTarget.style.background=u.name===frName?'rgba(79,123,255,0.1)':'transparent'}><span style={{width:7,height:7,background:u.color}}/>{u.name}</button>)}
+            </div>}
           </div>
-        )}
+        </div>
+        <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
       </Block>
-
-      {/* friends list */}
-      <Block label="network.members" meta={`${friends.length+1} member${friends.length!==0?'s':''}`}>
-        {friends.length===0?(
-          <EmptyState title="no friends yet" hint="search for someone by name above to send a request"/>
-        ):(
-          <Tbl cols={['who','']} widths={['auto','32px']}>
-            <Row hi>
-              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:'var(--v1-accent)'}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell>
-              <Cell/>
+      <Block label="network.members" meta={`${D.leaderboard.length} members`}>
+        <Tbl cols={['#','who','streak','wk hrs','trend']} widths={['28px','auto','60px','80px','120px']}>
+          {D.leaderboard.map((u,i)=>(
+            <Row key={u.name} hi={u.isYou}>
+              <Cell mono dim>#{i+1}</Cell>
+              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:u.color}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}{u.online&&<span title="online" style={{width:7,height:7,background:'#22C55E',borderRadius:'50%',boxShadow:'0 0 5px #22C55E88',flexShrink:0}}/>}</span></Cell>
+              <Cell mono dim>{u.streak}d</Cell>
+              <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
+              <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
             </Row>
-            {friends.map(f=>(
-              <Row key={f.id}>
-                <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:f.color||FRIEND_COLORS[0]}}/>{f.name}</span></Cell>
-                <Cell>
-                  {!useSupa&&<button onClick={()=>removeLocalFriend(f.id)}
-                    style={{background:'transparent',border:'none',color:'var(--v1-fg-muted)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'0 4px'}}
-                    onMouseEnter={e=>e.currentTarget.style.color='var(--v1-down)'}
-                    onMouseLeave={e=>e.currentTarget.style.color='var(--v1-fg-muted)'}>✕</button>}
-                </Cell>
-              </Row>
-            ))}
-          </Tbl>
-        )}
+          ))}
+        </Tbl>
       </Block>
     </div>
   );
 }
 
 /* ── SEARCH PANEL ── */
-function CommandPalette({sessions,onClose,onNav,onStartSession}){
+function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMinProd,setFilterMinProd,onNav}){
   const[query,setQuery]=useState('');
-  const[sel,setSel]=useState(0);
+  const[localSubjs,setLocalSubjs]=useState(filterSubjects||[]);
+  const[localProd,setLocalProd]=useState(filterMinProd||0);
   const inputRef=useRef(null);
+  const allSubjs=[...new Set([...D.subjects.map(s=>s.name),...subjects.map(s=>s.subject)])].filter(Boolean);
+  const toggleSubj=s=>setLocalSubjs(a=>a.includes(s)?a.filter(x=>x!==s):[...a,s]);
+  const hasFilters=localSubjs.length>0||localProd>0;
+
+  // live search results across sessions
   const q=query.trim().toLowerCase();
-
-  const COMMANDS=[
-    {icon:'→',label:'start new session',      hint:'begin tracking study time',   tag:'session', action:()=>{onClose();onStartSession();}},
-    {icon:'→',label:'add a subject',           hint:'create a subject to track',   tag:'subj',    action:()=>{onNav('subjects');onClose();}},
-    {icon:'→',label:'add a friend',            hint:'invite someone to compete',   tag:'net',     action:()=>{onNav('friend');onClose();}},
-    {icon:'→',label:'view leaderboard',        hint:'see your rank vs friends',    tag:'rank',    action:()=>{onNav('leader');onClose();}},
-    {icon:'→',label:'view heatmap',            hint:'your hours over time',        tag:'hours',   action:()=>{onNav('heatmap');onClose();}},
-    {icon:'→',label:'view calendar',           hint:'schedule events & todos',     tag:'cal',     action:()=>{onNav('calendar');onClose();}},
-    {icon:'→',label:'view session log',        hint:'browse all past sessions',    tag:'log',     action:()=>{onNav('log');onClose();}},
-    {icon:'→',label:'go to home',              hint:'dashboard overview',          tag:'home',    action:()=>{onNav('dashboard');onClose();}},
-  ];
-
-  // filter commands by query
-  const matchCmds=q?COMMANDS.filter(c=>c.label.includes(q)||c.hint.includes(q)||c.tag.includes(q)):COMMANDS;
-
-  // filter sessions by query
-  const matchSessions=q?sessions.filter(s=>
+  const results=q.length>0?subjects.filter(s=>
     s.subject?.toLowerCase().includes(q)||
     s.note?.toLowerCase().includes(q)||
+    s.day?.toLowerCase().includes(q)||
     s.duration?.toLowerCase().includes(q)
-  ).slice(0,5):[];
+  ).slice(0,8):[];
 
-  const totalItems=matchCmds.length+matchSessions.length;
-
-  useEffect(()=>{setSel(0);},[query]);
   useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),30);},[]);
   useEffect(()=>{
-    const h=e=>{
-      if(e.key==='Escape'){onClose();return;}
-      if(e.key==='ArrowDown'){e.preventDefault();setSel(s=>Math.min(s+1,totalItems-1));}
-      if(e.key==='ArrowUp'){e.preventDefault();setSel(s=>Math.max(s-1,0));}
-      if(e.key==='Enter'){
-        e.preventDefault();
-        if(sel<matchCmds.length){matchCmds[sel]?.action();}
-        else{const s=matchSessions[sel-matchCmds.length];if(s){onNav('log');onClose();}}
-      }
-    };
+    const h=e=>{if(e.key==='Escape')onClose();};
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
-  },[sel,totalItems,matchCmds,matchSessions,onClose,onNav]);
+  },[]);
 
-  const Row=({icon,label,hint,tag,idx,onClick})=>{
-    const active=sel===idx;
-    return(
-      <div onClick={onClick} onMouseEnter={()=>setSel(idx)}
-        style={{display:'grid',gridTemplateColumns:'28px 1fr auto',alignItems:'center',gap:6,padding:'8px 14px',cursor:'pointer',background:active?'rgba(79,123,255,0.09)':'transparent',borderLeft:`2px solid ${active?'var(--v1-accent)':'transparent'}`}}>
-        <span style={{fontSize:13,color:active?'var(--v1-accent)':'var(--v1-fg-muted)',textAlign:'center'}}>{icon}</span>
-        <div style={{display:'flex',flexDirection:'column',gap:1}}>
-          <span style={{fontSize:12,color:active?'var(--v1-fg)':'var(--v1-fg-2)',letterSpacing:'0.02em'}}>{label}</span>
-          {hint&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',letterSpacing:'0.02em'}}>{hint}</span>}
-        </div>
-        <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em',textTransform:'uppercase',border:'1px solid var(--v1-rule)',padding:'2px 6px'}}>{tag}</span>
-      </div>
-    );
+  const applyAndGo=()=>{
+    setFilterSubjects(localSubjs);setFilterMinProd(localProd);
+    onNav&&onNav('log');onClose();
   };
+  const clear=()=>{setQuery('');setLocalSubjs([]);setLocalProd(0);setFilterSubjects([]);setFilterMinProd(0);};
 
   return(
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(5px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
-      <div style={{width:540,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)',boxShadow:'0 24px 60px rgba(0,0,0,0.6)',maxHeight:'70vh',display:'flex',flexDirection:'column'}}>
-
-        {/* input */}
-        <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10,flexShrink:0}}>
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
+      <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
+        {/* search input */}
+        <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10}}>
           <span style={{fontSize:14,color:'var(--v1-fg-muted)'}}>⌕</span>
           <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
-            placeholder="search features, navigate, find sessions…"
+            placeholder="search sessions, subjects, notes..."
             style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'14px 0',letterSpacing:'0.02em'}}/>
-          {query&&<button onClick={()=>setQuery('')} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
-          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em',flexShrink:0}}>esc</span>
+          {(query||hasFilters)&&<button onClick={clear} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
+          <button onClick={onClose} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>✕ esc</button>
         </div>
 
-        <div style={{overflowY:'auto'}}>
-          {/* commands */}
-          {matchCmds.length>0&&(
-            <div>
-              <div style={{padding:'7px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>actions</div>
-              {matchCmds.map((c,i)=><Row key={c.label} icon={c.icon} label={c.label} hint={c.hint} tag={c.tag} idx={i} onClick={c.action}/>)}
-            </div>
-          )}
-
-          {/* session results */}
-          {matchSessions.length>0&&(
-            <div style={{borderTop:'1px solid var(--v1-rule)'}}>
-              <div style={{padding:'7px 14px 4px',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>sessions</div>
-              {matchSessions.map((s,i)=>{
-                const subj=D.subjects.find(x=>x.name===s.subject);
-                const idx=matchCmds.length+i;
-                const active=sel===idx;
-                return(
-                  <div key={i} onMouseEnter={()=>setSel(idx)}
-                    onClick={()=>{onNav('log');onClose();}}
-                    style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',cursor:'pointer',background:active?'rgba(79,123,255,0.09)':'transparent',borderLeft:`2px solid ${active?'var(--v1-accent)':'transparent'}`}}>
-                    <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
-                    <div>
-                      <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject||'—'}</span>
-                      {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
+        {/* live results */}
+        {q.length>0&&(
+          <div style={{borderBottom:'1px solid var(--v1-rule)'}}>
+            {results.length===0
+              ? <div style={{padding:'12px 14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no sessions match "{query}"</div>
+              : results.map((s,i)=>{
+                  const subj=D.subjects.find(x=>x.name===s.subject);
+                  return(
+                    <div key={i} onClick={()=>{setFilterSubjects(s.subject?[s.subject]:[]);setFilterMinProd(0);onNav&&onNav('log');onClose();}}
+                      style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
+                      <div>
+                        <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject}</span>
+                        {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
+                      </div>
+                      <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
+                      <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
                     </div>
-                    <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
-                    <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })
+            }
+          </div>
+        )}
 
-          {/* no results */}
-          {q&&matchCmds.length===0&&matchSessions.length===0&&(
-            <div style={{padding:'20px 14px',fontSize:11,color:'var(--v1-fg-muted)',textAlign:'center'}}>no results for "{query}"</div>
-          )}
+        {/* narrow by subject */}
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>narrow by subject</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+            {allSubjs.map(s=>{
+              const subj=D.subjects.find(x=>x.name===s);
+              const color=subj?subj.color:'var(--v1-fg-muted)';
+              const on=localSubjs.includes(s);
+              return<button key={s} onClick={()=>toggleSubj(s)} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',fontSize:10,fontFamily:'var(--v1-mono)',background:on?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${on?color:'var(--v1-rule-strong)'}`,color:on?'var(--v1-fg)':'var(--v1-fg-2)',cursor:'pointer',transition:'all 80ms'}}>
+                <span style={{width:5,height:5,background:color,flexShrink:0}}/>{s}
+              </button>;
+            })}
+          </div>
         </div>
 
-        {/* footer hint */}
-        <div style={{borderTop:'1px solid var(--v1-rule)',padding:'6px 14px',display:'flex',gap:14,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em',flexShrink:0}}>
-          <span>↑↓ navigate</span>
-          <span>↵ select</span>
-          <span>esc close</span>
-          <span style={{flex:1}}/>
-          <span>⌘K to open</span>
+        {/* narrow by productivity */}
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>min productivity</div>
+          <div style={{display:'flex',gap:5}}>
+            {[[0,'any'],[3,'≥ 3'],[4,'≥ 4'],[5,'5 only']].map(([v,label])=>(
+              <button key={v} onClick={()=>setLocalProd(v)} style={{flex:1,padding:'4px 0',fontSize:10,fontFamily:'var(--v1-mono)',background:localProd===v?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${localProd===v?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:localProd===v?'var(--v1-accent)':'var(--v1-fg-2)',cursor:'pointer'}}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* apply */}
+        <div style={{padding:'8px 14px',display:'flex',justifyContent:'flex-end'}}>
+          <button onClick={applyAndGo} style={{...Btn.sm,background:hasFilters?'var(--v1-accent)':'transparent',color:hasFilters?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:hasFilters?'var(--v1-accent)':'var(--v1-rule)',padding:'4px 14px'}}>
+            {hasFilters?'apply → log':'view log →'}
+          </button>
         </div>
       </div>
     </div>
@@ -1885,57 +1564,123 @@ function CommandPalette({sessions,onClose,onNav,onStartSession}){
 }
 
 /* ── AUTH SCREEN ── */
+function GoogleSetupModal({onClose,onSave}){
+  const[clientId,setClientId]=useState('');
+  const save=()=>{
+    const v=clientId.trim();
+    if(!v||!v.includes('.apps.googleusercontent.com')){return;}
+    localStorage.setItem('google_client_id',v);
+    onSave();
+  };
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:500,background:'rgba(5,6,8,0.85)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:480,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)'}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
+          <span style={{color:'var(--v1-fg-2)'}}>set up google sign-in</span>
+          <span style={{flex:1}}/>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11}}>✕</button>
+        </div>
+        <div style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{fontSize:11,color:'var(--v1-fg-2)',lineHeight:1.7}}>
+            Google Sign-In needs a free OAuth Client ID. Takes 3 minutes:
+          </div>
+          {[
+            ['1','Go to','console.cloud.google.com','https://console.cloud.google.com'],
+            ['2','Create a new project (any name)','',''],
+            ['3','APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID','',''],
+            ['4','Application type: Web · Add authorised JS origin:','andreev-net.netlify.app',''],
+            ['5','Copy the Client ID (ends in .apps.googleusercontent.com) and paste below','',''],
+          ].map(([n,text,link,href])=>(
+            <div key={n} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
+              <span style={{width:20,height:20,background:'var(--v1-accent)',color:'var(--v1-bg)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</span>
+              <span style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.5}}>
+                {text}{' '}
+                {link&&<span style={{color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10}}>{link}</span>}
+                {href&&<a href={href} target="_blank" rel="noreferrer" style={{color:'var(--v1-accent)',fontSize:10,marginLeft:4}}>↗</a>}
+              </span>
+            </div>
+          ))}
+          <div style={{display:'flex',gap:8,marginTop:4}}>
+            <input
+              value={clientId} onChange={e=>setClientId(e.target.value)}
+              placeholder="xxxxxxxxxx.apps.googleusercontent.com"
+              style={{flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:11,padding:'9px 10px',outline:'none'}}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
+              onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
+              onKeyDown={e=>{if(e.key==='Enter')save();}}
+              autoFocus
+            />
+            <button onClick={save}
+              disabled={!clientId.includes('.apps.googleusercontent.com')}
+              style={{padding:'9px 16px',background:clientId.includes('.apps.googleusercontent.com')?'var(--v1-accent)':'var(--v1-bg-hover)',color:clientId.includes('.apps.googleusercontent.com')?'var(--v1-bg)':'var(--v1-fg-muted)',border:'none',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em',fontWeight:600}}>
+              save →
+            </button>
+          </div>
+          <div style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em'}}>
+            saved to your browser · no redeploy needed
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthScreen({onAuth}){
-  // 'signin' | 'signup' | 'otp'
-  const[mode,setMode]=useState(()=>(_sb||localAuth._users().length>0)?'signin':'signup');
+  const[mode,setMode]=useState('signup'); // 'signin'|'signup' — signup shown first for new visitors
   const[name,setName]=useState('');
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
   const[confirm,setConfirm]=useState('');
-  const[otpCode,setOtpCode]=useState('');
-  const[pendingEmail,setPendingEmail]=useState('');
-  const[pendingName,setPendingName]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
-  const otpRef=useRef(null);
+  const[gsiReady,setGsiReady]=useState(false);
+  const[showGoogleSetup,setShowGoogleSetup]=useState(false);
   const emailRef=useRef(null);
+  const gBtnRef=useRef(null);
 
-  useEffect(()=>{setError('');setPassword('');setConfirm('');setOtpCode('');},[mode]);
+  const initGSI=useCallback(()=>{
+    const cid=localStorage.getItem('google_client_id')||'';
+    if(!cid||!window.google?.accounts)return;
+    try{
+      window.google.accounts.id.initialize({
+        client_id:cid,
+        callback:(response)=>{
+          const payload=decodeGoogleJwt(response.credential);
+          if(!payload){setError('google sign-in failed — could not decode token');return;}
+          const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
+          if(res.error){setError(res.error);return;}
+          onAuth(res.user);
+        },
+        auto_select:false,cancel_on_tap_outside:true,
+      });
+      setGsiReady(true);
+    }catch(e){}
+  },[onAuth]);
+
+  /* initialise Google Identity Services when script loads */
   useEffect(()=>{
-    if(mode==='otp')setTimeout(()=>otpRef.current?.focus(),60);
-    else setTimeout(()=>emailRef.current?.focus(),60);
-  },[mode]);
+    const t=setInterval(()=>{if(window.google?.accounts){initGSI();clearInterval(t);}},300);
+    initGSI();
+    return()=>clearInterval(t);
+  },[initGSI]);
 
-  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
+  /* render Google button into ref div whenever ready */
+  useEffect(()=>{
+    if(!gsiReady||!gBtnRef.current)return;
+    try{
+      window.google.accounts.id.renderButton(gBtnRef.current,{
+        type:'standard',theme:'outline',size:'large',width:352,
+        text:mode==='signup'?'signup_with':'signin_with',
+        shape:'square',logo_alignment:'left',
+      });
+    }catch(e){}
+  },[gsiReady,mode]);
 
-  /* ── SUPABASE OTP FLOW ── */
-  const submitSupa=async e=>{
-    e.preventDefault();
-    setError('');
-    if(!email.trim()){setError('email is required');return;}
-    if(mode==='signup'&&!name.trim()){setError('name is required');return;}
-    setLoading(true);
-    const res=await sbAPI.sendOTP(email.trim());
-    setLoading(false);
-    if(res.error){setError(res.error);return;}
-    setPendingEmail(email.trim());
-    setPendingName(name.trim());
-    setMode('otp');
-  };
+  useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
+  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
 
-  const verifyOTP=async e=>{
-    e.preventDefault();
-    setError('');
-    if(otpCode.trim().length<4){setError('enter the code from your email');return;}
-    setLoading(true);
-    const res=await sbAPI.verifyOTP(pendingEmail,otpCode.trim(),pendingName||undefined);
-    setLoading(false);
-    if(res.error){setError(res.error);return;}
-    onAuth(res.user);
-  };
-
-  /* ── LOCAL PASSWORD FLOW (fallback) ── */
-  const submitLocal=async e=>{
+  const submit=async e=>{
     e.preventDefault();
     setError('');
     if(!email.trim()){setError('email is required');return;}
@@ -1944,59 +1689,46 @@ function AuthScreen({onAuth}){
       if(!name.trim()){setError('name is required');return;}
       if(password!==confirm){setError('passwords do not match');return;}
       setLoading(true);
-      const res=await localAuth.signUp(name,email,password);
+      const res=auth.signUp(name,email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
     }else{
       setLoading(true);
-      const res=await localAuth.signIn(email,password);
+      const res=auth.signIn(email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
     }
   };
 
-  /* ── OTP ENTRY SCREEN ── */
-  if(mode==='otp'){
-    return(
-      <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
-        <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
-          <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span><span style={{fontWeight:600}}>Andreev</span><span style={{color:'var(--v1-fg-3)'}}>.net</span><span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
-        </div>
-        <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
-          <div style={{padding:'16px 24px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)'}}>
-            <div style={{fontSize:10,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:4}}>check your email</div>
-            <div style={{fontSize:12,color:'var(--v1-fg-2)'}}>we sent a 6-digit code to <span style={{color:'var(--v1-fg)'}}>{pendingEmail}</span></div>
-          </div>
-          <form onSubmit={verifyOTP} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>verification code</label>
-              <input ref={otpRef} value={otpCode} onChange={e=>setOtpCode(e.target.value.replace(/\D/g,''))} maxLength={6} placeholder="000000"
-                style={{...fieldStyle,fontSize:28,letterSpacing:'0.3em',textAlign:'center'}}
-                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-            </div>
-            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11}}>✕ {error}</div>}
-            <button type="submit" disabled={loading} style={{padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600}}>
-              {loading?'verifying…':'verify & continue →'}
-            </button>
-            <div style={{display:'flex',gap:14,fontSize:10,color:'var(--v1-fg-muted)'}}>
-              <button type="button" onClick={()=>{setMode(pendingName?'signup':'signin');setOtpCode('');setError('');}} style={{background:'none',border:'none',color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>← back</button>
-              <button type="button" onClick={async()=>{setError('');setLoading(true);const r=await sbAPI.sendOTP(pendingEmail);setLoading(false);if(r.error)setError(r.error);}} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>resend code</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  const GoogleIcon=()=>(
+    <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      <path fill="none" d="M0 0h48v48H0z"/>
+    </svg>
+  );
 
-  /* ── MAIN AUTH CARD ── */
+  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
+
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
+      {showGoogleSetup&&<GoogleSetupModal onClose={()=>setShowGoogleSetup(false)} onSave={()=>{setShowGoogleSetup(false);initGSI();}}/>}
+
+      {/* logo */}
       <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
-        <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span><span style={{fontWeight:600}}>Andreev</span><span style={{color:'var(--v1-fg-3)'}}>.net</span><span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
+        <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
+        <span style={{fontWeight:600}}>Andreev</span>
+        <span style={{color:'var(--v1-fg-3)'}}>.net</span>
+        <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
       </div>
+
+      {/* card */}
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
+        {/* mode tabs */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
           {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
             <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
@@ -2004,50 +1736,80 @@ function AuthScreen({onAuth}){
             </button>
           ))}
         </div>
-        <div style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-          {_sb&&<div style={{padding:'8px 10px',background:'rgba(79,123,255,0.07)',border:'1px solid rgba(79,123,255,0.3)',fontSize:10,color:'var(--v1-fg-3)',letterSpacing:'0.04em'}}>
-            a verification code will be sent to your email
-          </div>}
-          <form onSubmit={_sb?submitSupa:submitLocal} style={{display:'flex',flexDirection:'column',gap:12}}>
-            {mode==='signup'&&(
-              <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
-                <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
-                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+
+        <form onSubmit={submit} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+
+          {/* Google Sign-In button */}
+          {gsiReady?(
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div ref={gBtnRef} style={{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}/>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
               </div>
-            )}
+            </div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <button type="button" onClick={()=>setShowGoogleSetup(true)}
+                style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'border-color 80ms'}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
+                <GoogleIcon/>
+                continue with google
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',marginLeft:4}}>· setup →</span>
+              </button>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+              </div>
+            </div>
+          )}
+
+          {mode==='signup'&&(
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-              <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-            {!_sb&&<>
-              <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-                <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
-                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-              </div>
-              {mode==='signup'&&(
-                <div style={{display:'flex',flexDirection:'column',gap:5}}>
-                  <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
-                  <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
-                    onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-                </div>
-              )}
-            </>}
-            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
-            <button type="submit" disabled={loading} style={{marginTop:2,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-              {loading?'…':(mode==='signin'?(_sb?'send code →':'sign in →'):(_sb?'send code →':'create account →'))}
-            </button>
-          </form>
-        </div>
+          )}
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
+            <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+          </div>
+          {mode==='signup'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
+              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+          )}
+          {error&&(
+            <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
+              ✕ {error}
+            </div>
+          )}
+          <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
+            {loading?'...':(mode==='signin'?'sign in →':'create account →')}
+          </button>
+        </form>
+
         <div style={{borderTop:'1px solid var(--v1-rule)',padding:'12px 24px',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'center',letterSpacing:'0.04em'}}>
           {mode==='signin'?<>no account? <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>create one</button></>
             :<>already have one? <button onClick={()=>setMode('signin')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>sign in</button></>}
         </div>
       </div>
+
+      {/* footer note */}
       <div style={{position:'absolute',bottom:16,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.12em',textTransform:'uppercase'}}>
-        {_sb?'verified accounts · data synced across devices':'accounts stored locally · configure supabase for cross-device sync'}
+        accounts stored locally · no data sent anywhere
       </div>
     </div>
   );
@@ -2057,7 +1819,7 @@ function AuthScreen({onAuth}){
 const TABS=[
   {id:'dashboard',label:'home',   kbd:'1'},
   {id:'timer',    label:'session',kbd:'2'},
-  {id:'calendar', label:'calendar',kbd:'3'},
+  {id:'calendar', label:'cal',    kbd:'3'},
   {id:'leader',   label:'rank',   kbd:'4'},
   {id:'heatmap',  label:'hours',  kbd:'5'},
   {id:'subjects', label:'subj',   kbd:'6'},
@@ -2076,6 +1838,7 @@ function SubjectPicker({onStart,onClose}){
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(5,6,8,0.80)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{width:420,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
           <span style={{color:'var(--v1-fg-2)'}}>begin session · pick subject</span>
           <span style={{flex:1}}/>
           <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
@@ -2117,23 +1880,19 @@ function Shell({user,onLogout}){
   const[filterMinProd,setFilterMinProd]=useState(0);
   const tick=useTick(1000);
 
-  // Load sessions from Supabase on mount
-  useEffect(()=>{
-    if(!_sb||!user?.id)return;
-    sbAPI.loadSessions(user.id).then(data=>{
-      if(data.length)setSessions(data.map(s=>({...s,day:s.day||'',time:s.time||''})));
-    }).catch(()=>{});
-  },[user?.id]);
-
   // ⌘K shortcut
   useEffect(()=>{
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[]);
-  const clockStr=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Madrid',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+  const now=new Date();
+  const clockStr=now.toUTCString().split(' ')[4];
 
   useEffect(()=>{
-    const onKey=e=>{if(e.key==='Escape'&&showPicker)setShowPicker(false);};
+    const onKey=e=>{
+      if(e.key==='Escape'&&showPicker){setShowPicker(false);return;}
+      const t=TABS.find(t=>t.kbd===e.key);if(t)setScreen(t.id);
+    };
     window.addEventListener('keydown',onKey);
     return()=>window.removeEventListener('keydown',onKey);
   },[showPicker]);
@@ -2182,9 +1941,8 @@ function Shell({user,onLogout}){
     const color=subj?subj.color:'#5C6776';
     const brk=breakSecs||0;
     const eff=brk>0?Math.round(elapsed/(elapsed+brk)*100):null;
-    const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,secs:elapsed,productivity:rating,note:'',breakSecs:brk,efficiency:eff};
+    const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,productivity:rating,note:'',breakSecs:brk,efficiency:eff};
     setSessions(prev=>[newEntry,...prev]);
-    if(_sb&&user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:newEntry.secs,productivity:newEntry.productivity,note:newEntry.note,day:newEntry.day,time:newEntry.time,color:newEntry.color}).catch(()=>{});
     setSessionState(DEFAULT_SESSION);
     setScreen('dashboard');
   };
@@ -2205,9 +1963,7 @@ function Shell({user,onLogout}){
     const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
     const subj=D.subjects.find(s=>s.name===subject);
     const color=subj?subj.color:'#5C6776';
-    const newEntry={day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,secs,productivity:rating,note:note||''};
-    setSessions(prev=>[newEntry,...prev]);
-    if(_sb&&user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:newEntry.secs,productivity:newEntry.productivity,note:newEntry.note,day:newEntry.day,time:newEntry.time,color:newEntry.color}).catch(()=>{});
+    setSessions(prev=>[{day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||''},...prev]);
     setScreen('log');
   };
 
@@ -2223,13 +1979,13 @@ function Shell({user,onLogout}){
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
       {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)}/>}
-      {showFilter&&<CommandPalette sessions={sessions} onClose={()=>setShowFilter(false)} onNav={setScreen} onStartSession={()=>setShowPicker(true)}/>}
+      {showFilter&&<FilterPanel subjects={sessions} onClose={()=>setShowFilter(false)} filterSubjects={filterSubjects} setFilterSubjects={setFilterSubjects} filterMinProd={filterMinProd} setFilterMinProd={setFilterMinProd} onNav={setScreen}/>}
 
       {/* TOP RAIL */}
       <header style={{display:'grid',gridTemplateColumns:'auto 1fr auto auto auto',alignItems:'center',gap:16,padding:'0 16px',height:40,flexShrink:0,background:'var(--v1-bg)',borderBottom:'1px solid var(--v1-rule)'}}>
         <div style={{display:'flex',alignItems:'center',gap:0,fontSize:12,fontFamily:'var(--v1-mono)'}}>
           <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
-          <span style={{fontWeight:600,letterSpacing:'0.02em'}}>Andreev</span>
+          <span style={{fontWeight:600,letterSpacing:'0.02em'}}>{user?.name||'Andreev'}</span>
           <span style={{color:'var(--v1-fg-3)'}}>.net</span>
           <Cursor size="0.55em" color="var(--v1-accent)"/>
           <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
@@ -2237,16 +1993,14 @@ function Shell({user,onLogout}){
         <nav style={{display:'flex',gap:2,alignItems:'center',overflow:'hidden'}}>
           {TABS.map(t=>{const a=screen===t.id;return(
             <button key={t.id} onClick={()=>setScreen(t.id)} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:a?'var(--v1-bg-elev)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderBottom:a?'1px solid var(--v1-accent)':'1px solid transparent',padding:'11px 12px',cursor:'pointer',whiteSpace:'nowrap',letterSpacing:'0.04em',position:'relative',top:1}}>
-              {t.label}
+              <span style={{color:'var(--v1-fg-muted)',marginRight:6}}>{t.kbd}</span>{t.label}
             </button>
           );})}
         </nav>
-        <span style={{fontSize:11,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{clockStr} <span style={{color:'var(--v1-fg-muted)'}}>BCN</span></span>
+        <span style={{fontSize:11,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{clockStr} <span style={{color:'var(--v1-fg-muted)'}}>UTC</span></span>
         <button onClick={onLogout} title={user?.email} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:'0.08em'}}>↩ out</button>
-        <button onClick={()=>setShowFilter(f=>!f)} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 8px',border:'1px solid var(--v1-rule)',fontSize:11,color:'var(--v1-fg-3)',background:'transparent',cursor:'pointer',fontFamily:'var(--v1-mono)',transition:'border-color 80ms'}}
-          onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}
-          onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule)';e.currentTarget.style.color='var(--v1-fg-3)';}}>
-          <span>⌕</span><span>search</span><span style={{marginLeft:4,color:'var(--v1-fg-muted)',fontSize:10}}>⌘K</span>
+        <button onClick={()=>setShowFilter(f=>!f)} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 8px',border:`1px solid ${(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-rule)'}`,fontSize:11,color:(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-fg-3)',background:'transparent',cursor:'pointer',fontFamily:'var(--v1-mono)'}}>
+          <span>⌕</span><span>search</span>{(filterSubjects.length>0||filterMinProd>0)&&<span style={{background:'var(--v1-accent)',color:'var(--v1-bg)',borderRadius:2,padding:'0 4px',fontSize:9,fontWeight:700}}>{filterSubjects.length+(filterMinProd>0?1:0)}</span>}<span style={{marginLeft:4,color:'var(--v1-fg-muted)',fontSize:10}}>⌘K</span>
         </button>
         <button onClick={handleBegin} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:sessionState.active?'var(--v1-up)':'var(--v1-accent)',color:'var(--v1-bg)',border:'none',padding:'6px 14px',cursor:'pointer',fontWeight:600,letterSpacing:'0.04em'}}>{sessionState.active?'● session →':'begin →'}</button>
       </header>
@@ -2278,9 +2032,9 @@ function Shell({user,onLogout}){
         {screen==='calendar'&&<Calendar/>}
         {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader/></div>}
         {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget}/></div>}
-        {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects sessions={sessions} user={user}/></div>}
+        {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects/></div>}
         {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
-        {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend user={user}/></div>}
+        {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend/></div>}
       </main>
 
       {/* FOOTER */}
@@ -2290,6 +2044,7 @@ function Shell({user,onLogout}){
         <span>NET <span style={{color:'var(--v1-fg-2)'}}>1/1</span></span>
         <span>~/{curTab?.label}</span>
         <span style={{flex:1}}/>
+        <span style={{color:'var(--v1-fg-muted)'}}>──── press [1—8] to navigate ────</span>
         <span style={{flex:1}}/>
         <span>SESSIONS <span style={{color:'var(--v1-fg-2)'}}>{sessions.length}</span></span>
       </footer>
@@ -2298,29 +2053,8 @@ function Shell({user,onLogout}){
 }
 
 function App(){
-  const[user,setUser]=useState(()=>_sb?null:localAuth.getSession());
-  const[checking,setChecking]=useState(!!_sb);
-
-  // Restore Supabase session on page load
-  useEffect(()=>{
-    if(!_sb){setChecking(false);return;}
-    sbAPI.getSession().then(sess=>{
-      if(sess)setUser(sess);
-      setChecking(false);
-    }).catch(()=>setChecking(false));
-  },[]);
-
-  const handleLogout=()=>{
-    if(_sb)sbAPI.signOut().catch(()=>{});
-    else localAuth.clearSession();
-    setUser(null);
-  };
-
-  if(checking)return(
-    <div className="v1" style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em'}}>
-      loading…
-    </div>
-  );
+  const[user,setUser]=useState(()=>auth.getUser());
+  const handleLogout=()=>{auth.signOut();setUser(null);};
   if(!user) return <AuthScreen onAuth={setUser}/>;
   return <Shell user={user} onLogout={handleLogout}/>;
 }
