@@ -1349,14 +1349,14 @@ function Heatmap({weeklyTarget,setWeeklyTarget,sessions=[],heatmap,peakHour,peak
             <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>this week pace</span>
             <div style={{display:'flex',alignItems:'baseline',gap:8}}>
               <span style={{fontSize:44,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.04em',color:paceColor,fontFamily:'var(--v1-mono)',fontWeight:500}}>{pace}%</span>
-              <span style={{fontSize:12,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{wkHours.toFixed(1)}h / {weeklyTarget}h</span>
+              <span style={{fontSize:12,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{thisWkH.toFixed(1)}h / {weeklyTarget}h</span>
             </div>
             {/* Progress bar */}
             <div style={{height:6,background:'var(--v1-bg-elev-2)',position:'relative',marginTop:4}}>
               <div style={{position:'absolute',inset:0,width:`${Math.min(100,pace)}%`,background:paceColor,transition:'width 300ms'}}/>
               {weeklyTarget>0&&<div style={{position:'absolute',left:'100%',top:-3,width:1,height:12,background:'var(--v1-fg-muted)',transform:'translateX(-1px)'}}/>}
             </div>
-            <span style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{pace>=100?'target reached ✓':pace>=75?`${(weeklyTarget-wkHours).toFixed(1)}h to go · on track`:`${(weeklyTarget-wkHours).toFixed(1)}h remaining · pick up pace`}</span>
+            <span style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{pace>=100?'target reached ✓':pace>=75?`${(weeklyTarget-thisWkH).toFixed(1)}h to go · on track`:`${(weeklyTarget-thisWkH).toFixed(1)}h remaining · pick up pace`}</span>
           </div>
         </div>
       </Block>
