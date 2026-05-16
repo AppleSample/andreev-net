@@ -651,7 +651,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
       {/* 3-stat strip */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
         <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
-        <MiniStat k="todos" v={`${done}/${todos.length}`} sub={`${todos.length?(done/todos.length*100).toFixed(0):0}% done`} tone={done===todos.length&&todos.length>0?'up':'flat'}/>
+        <MiniStat k="todos" v={`${done}/${todos_.length}`} sub={`${todos_.length?(done/todos_.length*100).toFixed(0):0}% done`} tone={done===todos_.length&&todos_.length>0?'up':'flat'}/>
         <MiniStat k="urgent" v={highPri.length} sub="high priority" tone={highPri.length>0?'down':'flat'}/>
       </div>
       {/* events — compact */}
@@ -659,7 +659,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
         {evts.map((e,i)=>{
           const isNext=next&&e.time===next.time&&!evts.slice(0,i).some(x=>x.time===next.time);
           return<div key={i} style={{display:'grid',gridTemplateColumns:'3px 48px 1fr auto',alignItems:'center',gap:8,padding:'6px 10px',borderBottom:i<evts.length-1?'1px solid var(--v1-rule)':'none',background:isNext?'rgba(79,123,255,0.06)':'transparent'}}>
-            <span style={{width:3,height:14,background:e.color,flexShrink:0}}/>
+            <span style={{width:3,height:14,background:e.color||'var(--v1-fg-muted)',flexShrink:0}}/>
             <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:isNext?'var(--v1-accent)':'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
             <span style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.title}</span>
             <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',whiteSpace:'nowrap'}}>{e.subject||''}</span>
@@ -672,7 +672,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
         <div style={{border:'1px solid var(--v1-rule)'}}>
           {highPri.map((t,i)=>{const isDone=!!ts[t.id];return(
             <div key={t.id} style={{display:'grid',gridTemplateColumns:'3px 14px 1fr auto',alignItems:'center',gap:8,padding:'6px 10px',borderBottom:i<highPri.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.5:1}}
-              onClick={()=>setTs(s=>({...s,[t.id]:!s[t.id]}))}>
+              onClick={()=>setTs(t.id)}>
               <span style={{width:3,height:14,background:t.color,flexShrink:0}}/>
               <span style={{width:11,height:11,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-down)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:8,flexShrink:0}}>{isDone?'✓':''}</span>
               <span style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.title}</span>
@@ -685,7 +685,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
   );
 }
 
-function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[]}){
+function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[],events=[],todos=[],todoStates={},setTodoStates}){
   const wkH=Math.floor(thisWkH);
   const wkM=Math.floor((thisWkH-wkH)*60);
   return(
