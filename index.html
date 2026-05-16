@@ -464,7 +464,7 @@ function DashSessionBlock({sessionState,onNav,subjects=[]}){
     );
   }
 
-  const subjData=D.subjects.find(s=>s.name===sessionState.subject);
+  const subjData=subjects.find(s=>s.name===sessionState.subject);
   const color=subjData?subjData.color:'var(--v1-accent)';
   return(
     <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
