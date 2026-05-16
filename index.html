@@ -2121,7 +2121,7 @@ function Shell({user,onLogout}){
     const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
     const subj=subjects.find(s=>s.name===subject);
     const color=subj?subj.color:'#5C6776';
-    const entry={day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||'',secs};
+    const entry={day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||'',secs,created_at:now2.toISOString()};
     setSessions(prev=>[entry,...prev]);
     if(user?.id)sbAPI.addSession(user.id,{subject,duration:durStr,secs,productivity:rating,note:note||'',day:dayStr,time:`${hh}:${mm}`,color});
     setScreen('log');
