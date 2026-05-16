@@ -1461,11 +1461,16 @@ function Subjects({sessions=[],user}){
   });
   const grand=scoped.reduce((a,s)=>a+s.total,0);
 
-  const addSubj=()=>{
+  const addSubj=async()=>{
     const n=name.trim().toLowerCase();
     if(!n)return;
     if(subjs.find(s=>s.name===n))return;
-    setSubjs(a=>[...a,{id:Date.now(),name:n,color:col}]);
+    if(useSupa){
+      const saved=await sbAPI.addSubject(uid,{name:n,color:col});
+      if(saved)setSubjsRaw(a=>[...a,{id:saved.id,name:saved.name,color:saved.color}]);
+    }else{
+      setSubjs(a=>[...a,{id:Date.now(),name:n,color:col}]);
+    }
     setName('');setCol(SUBJ_COLORS[subjs.length%SUBJ_COLORS.length]);
   };
 
