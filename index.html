@@ -2036,7 +2036,6 @@ function SubjectPicker({onStart,onClose}){
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(5,6,8,0.80)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{width:420,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-          <span style={{color:'var(--v1-accent)'}}>◆</span>
           <span style={{color:'var(--v1-fg-2)'}}>begin session · pick subject</span>
           <span style={{flex:1}}/>
           <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
