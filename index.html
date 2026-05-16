@@ -1465,7 +1465,7 @@ function Subjects({user,subjects=[],setSubjects}){
           {subjs.map((s,i)=><div key={s._idx??s.name} style={{display:'grid',gridTemplateColumns:'4px auto 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
             <span style={{width:4,height:18,background:s.color}}/><span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
             <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{s.sessions} sessions · {s.lastStudied}</span>
-            <button onClick={async()=>{if(s.id&&user?.id)await sbAPI.deleteSubject(s.id);setSubjs(a=>a.filter(x=>x._idx!==s._idx));}} style={{...Btn.sm,fontSize:10,padding:'3px 10px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
+            <button onClick={async()=>{if(s.id&&user?.id)await sbAPI.deleteSubject(s.id);setSubjects(a=>a.filter(x=>(x.id??x._idx??x.name)!==(s.id??s._idx??s.name)));}} style={{...Btn.sm,fontSize:10,padding:'3px 10px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
           </div>)}
         </div>
       </Modal>}
