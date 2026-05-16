@@ -41,8 +41,78 @@ html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0A0B0D;}
 const{useState,useEffect,useRef,useMemo,useCallback}=React;
 
 /* ══════════════════════════════════════════════════════════════
-   AUTH MODULE — localStorage-backed, Supabase-ready
-   To swap to Supabase: replace signUp / signIn / signOut below
+   SUPABASE — https://zvcueclanmudepqofvql.supabase.co
+   SQL to run once in Supabase SQL editor (Settings → SQL Editor):
+
+   create table profiles (id uuid references auth.users primary key, name text not null, created_at timestamptz default now());
+   alter table profiles enable row level security;
+   create policy "read all" on profiles for select using (true);
+   create policy "own insert" on profiles for insert with check (auth.uid()=id);
+   create policy "own update" on profiles for update using (auth.uid()=id);
+
+   create table sessions (id bigserial primary key, user_id uuid references profiles(id) on delete cascade, subject text, duration text, secs int, productivity int, note text, day text, "time" text, color text, created_at timestamptz default now());
+   alter table sessions enable row level security;
+   create policy "own" on sessions for all using (auth.uid()=user_id);
+
+   create table subjects (id bigserial primary key, user_id uuid references profiles(id) on delete cascade, name text, color text);
+   alter table subjects enable row level security;
+   create policy "own" on subjects for all using (auth.uid()=user_id);
+
+   create table friend_requests (id bigserial primary key, from_id uuid references profiles(id) on delete cascade, to_id uuid references profiles(id) on delete cascade, status text default 'pending', created_at timestamptz default now(), unique(from_id,to_id));
+   alter table friend_requests enable row level security;
+   create policy "see own" on friend_requests for select using (auth.uid()=from_id or auth.uid()=to_id);
+   create policy "send" on friend_requests for insert with check (auth.uid()=from_id);
+   create policy "accept" on friend_requests for update using (auth.uid()=to_id);
+   ══════════════════════════════════════════════════════════════ */
+const _sb=(typeof supabase!=='undefined')
+  ?supabase.createClient('https://zvcueclanmudepqofvql.supabase.co','sb_publishable_vzhAv6yDZgnDXTrG7XzFsw_jyY1VrRw')
+  :null;
+
+const sbAPI={
+  async sendOTP(email){const{error}=await _sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});return error?{error:error.message}:{ok:true};},
+  async verifyOTP(email,token,name){
+    const{data,error}=await _sb.auth.verifyOtp({email,token,type:'email'});
+    if(error)return{error:error.message};
+    const u=data.user;
+    const{data:ex}=await _sb.from('profiles').select('name').eq('id',u.id).single();
+    if(!ex){const dn=name||(u.user_metadata?.name)||u.email.split('@')[0];await _sb.from('profiles').insert({id:u.id,name:dn});return{user:{id:u.id,email:u.email,name:dn}};}
+    return{user:{id:u.id,email:u.email,name:ex.name}};
+  },
+  async getSession(){
+    const{data}=await _sb.auth.getSession();
+    if(!data?.session)return null;
+    const u=data.session.user;
+    const{data:p}=await _sb.from('profiles').select('name').eq('id',u.id).single();
+    return{id:u.id,email:u.email,name:p?.name||u.email.split('@')[0]};
+  },
+  async signOut(){await _sb.auth.signOut();},
+  async loadSessions(uid){const{data}=await _sb.from('sessions').select('*').eq('user_id',uid).order('created_at',{ascending:false});return data||[];},
+  async addSession(uid,s){await _sb.from('sessions').insert({user_id:uid,...s});},
+  async loadSubjects(uid){const{data}=await _sb.from('subjects').select('*').eq('user_id',uid);return data||[];},
+  async addSubject(uid,s){const{data}=await _sb.from('subjects').insert({user_id:uid,name:s.name,color:s.color}).select().single();return data;},
+  async deleteSubject(id){await _sb.from('subjects').delete().eq('id',id);},
+  async searchProfiles(q,myId){const{data}=await _sb.from('profiles').select('id,name').ilike('name',`%${q}%`).neq('id',myId).limit(8);return data||[];},
+  async sendFriendRequest(fromId,toId){const{error}=await _sb.from('friend_requests').insert({from_id:fromId,to_id:toId});return error?{error:error.message}:{ok:true};},
+  async getPendingRequests(uid){
+    const{data}=await _sb.from('friend_requests').select('id,from_id').eq('to_id',uid).eq('status','pending');
+    if(!data?.length)return[];
+    const{data:pr}=await _sb.from('profiles').select('id,name').in('id',data.map(r=>r.from_id));
+    const pm=Object.fromEntries((pr||[]).map(p=>[p.id,p]));
+    return data.map(r=>({id:r.id,from:r.from_id,fromName:pm[r.from_id]?.name||'unknown'}));
+  },
+  async acceptRequest(reqId){await _sb.from('friend_requests').update({status:'accepted'}).eq('id',reqId);},
+  async declineRequest(reqId){await _sb.from('friend_requests').delete().eq('id',reqId);},
+  async getFriends(uid){
+    const{data}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
+    if(!data?.length)return[];
+    const ids=data.map(r=>r.from_id===uid?r.to_id:r.from_id);
+    const{data:pr}=await _sb.from('profiles').select('id,name').in('id',ids);
+    return pr||[];
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════
+   AUTH MODULE — localStorage-backed fallback (used when Supabase not available)
    ══════════════════════════════════════════════════════════════ */
 const auth={
   _key:'andreev_users',
