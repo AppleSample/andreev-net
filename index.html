@@ -750,7 +750,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
       {/* COL RIGHT — compact agenda */}
       <section style={{overflowY:'auto',display:'flex',flexDirection:'column'}}>
         <Block label="agenda.today" meta={_now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toLowerCase()} action={<Lnk onClick={()=>onNav('calendar')}>cal →</Lnk>} noBorder>
-          <DashAgenda onNav={onNav}/>
+          <DashAgenda onNav={onNav} events={events} todos={todos} todoStates={todoStates} setTodoStates={setTodoStates}/>
         </Block>
       </section>
     </div>
