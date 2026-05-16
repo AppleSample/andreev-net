@@ -1277,9 +1277,10 @@ function Leader({sessions=[],user,streak=0,subjects=[]}){
 }
 
 /* ── HOURS / HEATMAP ── */
-function FocusGrid(){
+function FocusGrid({heatmap}){
   const days=['mon','tue','wed','thu','fri','sat','sun'];
-  const hasData=D.heatmap.some(row=>row.some(v=>v>0));
+  const grid=heatmap&&heatmap.length===7?heatmap:Array.from({length:7},()=>Array(24).fill(0));
+  const hasData=grid.some(row=>row.some(v=>v>0));
   if(!hasData) return(
     <EmptyState icon="◰" title="no focus data yet"
       hint="study sessions will build your hourly heatmap over time"
@@ -1290,7 +1291,7 @@ function FocusGrid(){
       <div style={{display:'grid',gridTemplateColumns:'40px repeat(24,1fr)',gap:1}}>
         <div/>
         {Array.from({length:24},(_,h)=><div key={h} style={{fontSize:9,color:'var(--v1-fg-muted)',textAlign:'center',fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums'}}>{h%3===0?String(h).padStart(2,'0'):''}</div>)}
-        {D.heatmap.map((row,d)=>(
+        {grid.map((row,d)=>(
           <React.Fragment key={d}>
             <div style={{fontSize:10,color:'var(--v1-fg-3)',display:'flex',alignItems:'center',fontFamily:'var(--v1-mono)'}}>{days[d]}</div>
             {row.map((v,h)=><div key={h} title={`${days[d]} ${String(h).padStart(2,'0')}:00`} style={{height:24,background:v>0.05?`rgba(79,123,255,${v.toFixed(2)})`:'var(--v1-bg-elev-2)',cursor:'default'}}/>)}
