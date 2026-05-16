@@ -2311,6 +2311,18 @@ function Shell({user,onLogout}){
     return()=>clearTimeout(t);
   },[sessions,user?.id]);
 
+  // Heartbeat: keep updated_at fresh so friends see us online; also refresh leaderboard
+  useEffect(()=>{
+    if(!user?.id||!_sb)return;
+    const beat=()=>{
+      const s=computeStats(sessions);
+      sbAPI.upsertStats(user.id,s).catch(()=>{});
+      sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
+    };
+    const iv=setInterval(beat,120000);
+    return()=>clearInterval(iv);
+  },[user?.id]);
+
   // ⌘K shortcut
   useEffect(()=>{
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
