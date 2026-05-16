@@ -673,33 +673,15 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
           <WeekBars bars={weekBars}/>
         </Block>
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
-          {D.leaderboard.length<=1?(
-            <EmptyState icon="👥" title="you're the only one here"
-              hint="invite friends to study together and compete on the leaderboard"
-            />
-          ):(()=>{
-            const ranked=D.leaderboard;
-            const myIdx=ranked.findIndex(u=>u.isYou);
-            const total=ranked.length;
-            let indices;
-            if(myIdx===0) indices=[0,1,2];
-            else if(myIdx===total-1) indices=[total-3,total-2,total-1];
-            else indices=[myIdx-1,myIdx,myIdx+1];
-            const rows=indices.map(i=>({...ranked[i],rank:i+1}));
-            return(
-              <Tbl cols={['#','who','streak','wk','trend']} widths={['28px','auto','52px','76px','120px']}>
-                {rows.map((u)=>(
-                  <Row key={u.name} hi={u.isYou}>
-                    <Cell mono dim>#{u.rank}</Cell>
-                    <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:u.color,borderRadius:1,flexShrink:0}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}</span></Cell>
-                    <Cell mono dim>{u.streak}d</Cell>
-                    <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
-                    <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
-                  </Row>
-                ))}
-              </Tbl>
-            );
-          })()}
+          <Tbl cols={['#','who','wk hrs','sessions']} widths={['28px','auto','80px','72px']}>
+            <Row hi>
+              <Cell mono dim>#01</Cell>
+              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:'var(--v1-accent)',borderRadius:1,flexShrink:0}}/><span style={{color:'var(--v1-accent)'}}>you</span></span></Cell>
+              <Cell mono right>{fmtHM(thisWkH)}</Cell>
+              <Cell mono right dim>{sessions.length}</Cell>
+            </Row>
+          </Tbl>
+          <div style={{padding:'10px 0 2px',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',textAlign:'center'}}>add friends in the net tab to see rankings</div>
         </Block>
       </section>
 
