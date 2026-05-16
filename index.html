@@ -1979,7 +1979,7 @@ function Shell({user,onLogout}){
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[]);
   const now=new Date();
-  const clockStr=now.toUTCString().split(' ')[4];
+  const clockStr=[now.getUTCHours(),now.getUTCMinutes(),now.getUTCSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
 
   useEffect(()=>{
     const onKey=e=>{
