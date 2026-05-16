@@ -2170,7 +2170,7 @@ function Shell({user,onLogout}){
       <main style={{flex:1,overflow:'hidden',padding:0,position:'relative',display:'flex',flexDirection:'column'}}>
         {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState} subjects={subjects}/>}
         {screen==='timer'&&<div style={{overflowY:'auto',flex:1,display:'flex',flexDirection:'column'}}><Timer sessionState={sessionState} onPause={handlePause} onCommit={handleCommit} onDiscard={handleDiscard} onStart={handleStartSession} onLogManual={handleLogManual} subjects={subjects}/></div>}
-        {screen==='calendar'&&<Calendar/>}
+        {screen==='calendar'&&<Calendar subjects={subjects}/>}
         {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader/></div>}
         {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget}/></div>}
         {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects} sessions={sessions}/></div>}
