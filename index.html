@@ -670,7 +670,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
             </Block>
         }
         <Block label="last_7_days.histogram" meta="hours per day · target 3h">
-          <WeekBars bars={D.weekBars}/>
+          <WeekBars bars={weekBars}/>
         </Block>
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
           {D.leaderboard.length<=1?(
