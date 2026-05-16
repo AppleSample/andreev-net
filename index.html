@@ -2027,7 +2027,7 @@ function Shell({user,onLogout}){
 
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
-      {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)}/>}
+      {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)} subjects={subjects}/>}
       {showFilter&&<FilterPanel subjects={sessions} onClose={()=>setShowFilter(false)} filterSubjects={filterSubjects} setFilterSubjects={setFilterSubjects} filterMinProd={filterMinProd} setFilterMinProd={setFilterMinProd} onNav={setScreen}/>}
 
       {/* TOP RAIL */}
