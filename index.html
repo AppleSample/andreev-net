@@ -1170,17 +1170,22 @@ function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onCl
   );
 }
 
-function Calendar({subjects=[]}){
+function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates={},setTodoStates}){
   const TODAY_MONTH={year:_now.getFullYear(),month:_now.getMonth()};
   const today=_now.getDate();
   const[sel,setSel]=useState(null);
-  const[ts,setTs]=useState(()=>{const m={};D.todos.forEach(t=>{m[t.id]=t.done;});return m;});
-  const[extras,setExtras]=useState([]);
   const[calMonth,setCalMonth]=useState(TODAY_MONTH);
 
-  const allTodos=[...D.todos,...extras];
-  const evtsByDay=useMemo(()=>{const m={};D.events.forEach(e=>{(m[e.day]=m[e.day]||[]).push(e);});return m;},[]);
-  const todosByDay=useMemo(()=>{const m={};allTodos.forEach(t=>{(m[t.day]=m[t.day]||[]).push(t);});return m;},[allTodos]);
+  const evtsByDay=useMemo(()=>{
+    const m={};
+    events.forEach(e=>{(m[e.day]=m[e.day]||[]).push(e);});
+    return m;
+  },[events]);
+  const todosByDay=useMemo(()=>{
+    const m={};
+    todos.forEach(t=>{(m[t.day]=m[t.day]||[]).push(t);});
+    return m;
+  },[todos]);
 
   // Compute dynamic month info from calMonth state
   const daysInMonth=new Date(calMonth.year,calMonth.month+1,0).getDate();
