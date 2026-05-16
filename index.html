@@ -2012,13 +2012,27 @@ function Shell({user,onLogout}){
   const tick=useTick(1000);
 
   const[subjects,setSubjects]=useState([]);
+  const[leaderboard,setLeaderboard]=useState([]);
 
-  // Load sessions + subjects from Supabase on mount
+  // Load sessions + subjects + leaderboard from Supabase on mount
   useEffect(()=>{
     if(!user?.id)return;
     sbAPI.loadSessions(user.id).then(data=>{if(data.length>0)setSessions(data);});
     sbAPI.loadSubjects(user.id).then(data=>setSubjects(data));
+    sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
   },[user?.id]);
+
+  // Sync own stats to user_stats and refresh leaderboard whenever sessions change
+  useEffect(()=>{
+    if(!user?.id||!_sb||sessions.length===0)return;
+    const t=setTimeout(()=>{
+      const s=computeStats(sessions);
+      sbAPI.upsertStats(user.id,s)
+        .then(()=>sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{}))
+        .catch(()=>{});
+    },1500);
+    return()=>clearTimeout(t);
+  },[sessions,user?.id]);
 
   // ⌘K shortcut
   useEffect(()=>{
