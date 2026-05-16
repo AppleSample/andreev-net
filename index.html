@@ -1741,97 +1741,42 @@ function GoogleSetupModal({onClose,onSave}){
 }
 
 function AuthScreen({onAuth}){
-  const[mode,setMode]=useState('signup'); // 'signin'|'signup' — signup shown first for new visitors
-  const[name,setName]=useState('');
+  const[step,setStep]=useState('email'); // 'email'|'code'
   const[email,setEmail]=useState('');
-  const[password,setPassword]=useState('');
-  const[confirm,setConfirm]=useState('');
+  const[name,setName]=useState('');
+  const[code,setCode]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
-  const[gsiReady,setGsiReady]=useState(false);
-  const[showGoogleSetup,setShowGoogleSetup]=useState(false);
   const emailRef=useRef(null);
-  const gBtnRef=useRef(null);
+  const codeRef=useRef(null);
 
-  const initGSI=useCallback(()=>{
-    const cid=localStorage.getItem('google_client_id')||'';
-    if(!cid||!window.google?.accounts)return;
-    try{
-      window.google.accounts.id.initialize({
-        client_id:cid,
-        callback:(response)=>{
-          const payload=decodeGoogleJwt(response.credential);
-          if(!payload){setError('google sign-in failed — could not decode token');return;}
-          const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
-          if(res.error){setError(res.error);return;}
-          onAuth(res.user);
-        },
-        auto_select:false,cancel_on_tap_outside:true,
-      });
-      setGsiReady(true);
-    }catch(e){}
-  },[onAuth]);
+  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[]);
+  useEffect(()=>{if(step==='code')setTimeout(()=>codeRef.current?.focus(),60);},[step]);
 
-  /* initialise Google Identity Services when script loads */
-  useEffect(()=>{
-    const t=setInterval(()=>{if(window.google?.accounts){initGSI();clearInterval(t);}},300);
-    initGSI();
-    return()=>clearInterval(t);
-  },[initGSI]);
-
-  /* render Google button into ref div whenever ready */
-  useEffect(()=>{
-    if(!gsiReady||!gBtnRef.current)return;
-    try{
-      window.google.accounts.id.renderButton(gBtnRef.current,{
-        type:'standard',theme:'outline',size:'large',width:352,
-        text:mode==='signup'?'signup_with':'signin_with',
-        shape:'square',logo_alignment:'left',
-      });
-    }catch(e){}
-  },[gsiReady,mode]);
-
-  useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
-  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
-
-  const submit=async e=>{
+  const sendCode=async e=>{
     e.preventDefault();
-    setError('');
     if(!email.trim()){setError('email is required');return;}
-    if(!password){setError('password is required');return;}
-    if(mode==='signup'){
-      if(!name.trim()){setError('name is required');return;}
-      if(password!==confirm){setError('passwords do not match');return;}
-      setLoading(true);
-      const res=auth.signUp(name,email,password);
-      setLoading(false);
-      if(res.error){setError(res.error);return;}
-      onAuth(res.user);
-    }else{
-      setLoading(true);
-      const res=auth.signIn(email,password);
-      setLoading(false);
-      if(res.error){setError(res.error);return;}
-      onAuth(res.user);
-    }
+    setLoading(true);setError('');
+    const res=await sbAPI.sendOTP(email.trim().toLowerCase());
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    setStep('code');
   };
 
-  const GoogleIcon=()=>(
-    <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-      <path fill="none" d="M0 0h48v48H0z"/>
-    </svg>
-  );
+  const verifyCode=async e=>{
+    e.preventDefault();
+    if(!code.trim()){setError('enter the 6-digit code');return;}
+    setLoading(true);setError('');
+    const res=await sbAPI.verifyOTP(email.trim().toLowerCase(),code.trim(),name.trim());
+    setLoading(false);
+    if(res.error){setError(res.error);return;}
+    onAuth(res.user);
+  };
 
   const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
 
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
-      {showGoogleSetup&&<GoogleSetupModal onClose={()=>setShowGoogleSetup(false)} onSave={()=>{setShowGoogleSetup(false);initGSI();}}/>}
-
       {/* logo */}
       <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
         <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
@@ -1842,88 +1787,57 @@ function AuthScreen({onAuth}){
 
       {/* card */}
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
-        {/* mode tabs */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
-          {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
-            <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
-              {label}
-            </button>
-          ))}
+        <div style={{padding:'13px 24px',borderBottom:'1px solid var(--v1-rule)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--v1-fg-2)'}}>
+          {step==='email'?'sign in / create account':'check your email'}
         </div>
 
-        <form onSubmit={submit} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
-
-          {/* Google Sign-In button */}
-          {gsiReady?(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div ref={gBtnRef} style={{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}/>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-              </div>
+        {step==='email'?(
+          <form onSubmit={sendCode} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.6}}>
+              enter your email — we'll send a 6-digit code. no password needed.
             </div>
-          ):(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <button type="button" onClick={()=>setShowGoogleSetup(true)}
-                style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'border-color 80ms'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
-                <GoogleIcon/>
-                continue with google
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',marginLeft:4}}>· setup →</span>
-              </button>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-              </div>
-            </div>
-          )}
-
-          {mode==='signup'&&(
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
+              <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>
+                display name <span style={{color:'var(--v1-fg-muted)',letterSpacing:'0.02em',textTransform:'none'}}>(for new accounts)</span>
+              </label>
               <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-          )}
-          <div style={{display:'flex',flexDirection:'column',gap:5}}>
-            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-            <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
-              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:5}}>
-            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
-              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-          </div>
-          {mode==='signup'&&(
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
+              {loading?'sending...':'send code →'}
+            </button>
+          </form>
+        ):(
+          <form onSubmit={verifyCode} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.6}}>
+              code sent to <span style={{color:'var(--v1-fg)'}}>{email}</span>. check your inbox (and spam).
+            </div>
             <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
-              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>6-digit code</label>
+              <input ref={codeRef} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="123456" maxLength={6}
+                style={{...fieldStyle,fontSize:22,letterSpacing:'0.35em',textAlign:'center'}}
                 onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
             </div>
-          )}
-          {error&&(
-            <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
-              ✕ {error}
-            </div>
-          )}
-          <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-            {loading?'...':(mode==='signin'?'sign in →':'create account →')}
-          </button>
-        </form>
-
-        <div style={{borderTop:'1px solid var(--v1-rule)',padding:'12px 24px',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'center',letterSpacing:'0.04em'}}>
-          {mode==='signin'?<>no account? <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>create one</button></>
-            :<>already have one? <button onClick={()=>setMode('signin')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>sign in</button></>}
-        </div>
+            {error&&<div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>✕ {error}</div>}
+            <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
+              {loading?'verifying...':'verify →'}
+            </button>
+            <button type="button" onClick={()=>{setStep('email');setCode('');setError('');}} style={{padding:'6px 0',background:'transparent',border:'none',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em'}}>
+              ← use a different email
+            </button>
+          </form>
+        )}
       </div>
 
       {/* footer note */}
       <div style={{position:'absolute',bottom:16,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.12em',textTransform:'uppercase'}}>
-        accounts stored locally · no data sent anywhere
+        powered by supabase · secure email verification
       </div>
     </div>
   );
