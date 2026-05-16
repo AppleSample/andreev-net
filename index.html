@@ -562,14 +562,18 @@ function DashSessionHero({sessionState,onNav,subjects=[]}){
 }
 
 /* ── DASHBOARD ── */
-function DashAgenda({onNav}){
-  const today=D.today.day;
-  const evts=D.events.filter(e=>e.day===today).sort((a,b)=>a.time.localeCompare(b.time));
-  const[ts,setTs]=useState(()=>{const m={};D.todos.forEach(t=>{m[t.id]=t.done;});return m;});
-  const todos=D.todos.filter(t=>t.day===today);
-  const done=todos.filter(t=>ts[t.id]).length;
-  const pct=todos.length?(done/todos.length)*100:0;
-  const next=evts.find(e=>e.time>'14:32')||evts[evts.length-1];
+function DashAgenda({onNav,events=[],todos=[],todoStates={},setTodoStates}){
+  const now=new Date();
+  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const evts=events.filter(e=>e.day===todayStr).sort((a,b)=>a.time.localeCompare(b.time));
+  const todayTodos=todos.filter(t=>t.day===todayStr);
+  const done=todayTodos.filter(t=>todoStates[t.id]).length;
+  const pct=todayTodos.length?(done/todayTodos.length)*100:0;
+  const nowStr=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  const next=evts.find(e=>e.time>nowStr)||evts[evts.length-1];
+  const ts=todoStates;
+  const setTs=id=>setTodoStates(s=>({...s,[id]:!s[id]}));
+  const todos_=todayTodos;
   if(evts.length===0&&todos.length===0){
     return(
       <EmptyState icon="📅" title="no events or tasks today"
