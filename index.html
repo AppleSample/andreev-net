@@ -1945,7 +1945,7 @@ function App(){
   const[user,setUser]=useState(()=>localAuth.getSession());
   const handleLogout=()=>{
     localAuth.clearSession();
-    if(window.netlifyIdentity){try{netlifyIdentity.logout();}catch(e){}}
+    if(window.netlifyIdentity){try{window.netlifyIdentity.logout();}catch(e){}}
     setUser(null);
   };
   if(!user) return <AuthScreen onAuth={setUser}/>;
