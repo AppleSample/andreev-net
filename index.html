@@ -1576,10 +1576,9 @@ function AuthScreen({onAuth}){
   useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
 
   const handleGoogle=()=>{
-    if(!window.netlifyIdentity){setError('netlify identity not loaded — try refreshing');return;}
     setGLoading(true);
     setError('');
-    netlifyIdentity.open();
+    loadAndOpenIdentity();
   };
 
   const submit=async e=>{
