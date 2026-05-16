@@ -2504,7 +2504,7 @@ function Shell({user,onLogout}){
     const color=subj?subj.color:'#5C6776';
     const entry={day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||'',secs,created_at:ts.toISOString()};
     setSessions(prev=>[entry,...prev]);
-    if(user?.id)sbAPI.addSession(user.id,{subject,duration:durStr,secs,productivity:rating,note:note||'',day:dayStr,time:`${hh}:${mm}`,color});
+    if(user?.id)sbAPI.addSession(user.id,{subject,duration:durStr,secs,productivity:rating,note:note||'',day:dayStr,time:`${hh}:${mm}`,color,created_at:ts.toISOString()});
     setScreen('log');
   };
 
