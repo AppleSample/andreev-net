@@ -1367,62 +1367,112 @@ function Subjects(){
 }
 
 /* ── NETWORK ── */
+const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
+const FRIENDS_KEY='andreev_friends';
+function loadFriends(){try{return JSON.parse(localStorage.getItem(FRIENDS_KEY)||'[]');}catch{return[];}}
+function saveFriends(f){localStorage.setItem(FRIENDS_KEY,JSON.stringify(f));}
+
 function Friend(){
-  const[scope,setScope]=useState('7d');
-  const others=D.leaderboard.filter(u=>!u.isYou);
-  if(others.length===0){
-    return(
-      <Block label="network.members" meta="1 member">
-        <EmptyState icon="🤝" title="no study partners yet"
-          hint="once friends join and connect, you'll see head-to-head comparisons and live activity here"
-        />
-      </Block>
-    );
-  }
-  const[frName,setFrName]=useState(others[0].name);
-  const[open,setOpen]=useState(false);
-  const friend=others.find(u=>u.name===frName)||others[0];
-  const frIdx=D.leaderboard.findIndex(u=>u.name===frName);
-  const meSeries=userSeries(0,scope),frSeries=userSeries(frIdx,scope);
-  const meTotal=sumH(meSeries),frTotal=sumH(frSeries);
-  const chartSeries=[
-    {name:'you',color:'var(--v1-accent)',values:meSeries,fill:true},
-    {name:friend.name,color:friend.color,values:frSeries,dim:true},
-  ];
+  const[friends,setFriends]=useState(loadFriends);
+  const[adding,setAdding]=useState(false);
+  const[inputName,setInputName]=useState('');
+  const[inputColor,setInputColor]=useState(FRIEND_COLORS[0]);
+  const[error,setError]=useState('');
+  const inputRef=useRef(null);
+
+  useEffect(()=>{if(adding)setTimeout(()=>inputRef.current?.focus(),40);},[adding]);
+
+  const addFriend=()=>{
+    const name=inputName.trim();
+    if(!name){setError('enter a name');return;}
+    if(friends.some(f=>f.name.toLowerCase()===name.toLowerCase())){setError('already added');return;}
+    const f={id:Date.now(),name,color:inputColor,weekTime:'0h 00m',streak:0,trend:[],subjects:0,online:false,addedAt:Date.now()};
+    const next=[...friends,f];
+    setFriends(next);saveFriends(next);
+    setInputName('');setInputColor(FRIEND_COLORS[next.length%FRIEND_COLORS.length]);
+    setError('');setAdding(false);
+  };
+
+  const removeFriend=id=>{
+    const next=friends.filter(f=>f.id!==id);
+    setFriends(next);saveFriends(next);
+  };
+
+  const fieldStyle={flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 10px',outline:'none'};
+
+  const all=[{name:'you',isYou:true,color:'var(--v1-accent)',weekTime:'0h 00m',streak:0,trend:[],online:true},...friends];
+
   return(
     <div>
-      <Block label="network.compare" meta="head-to-head trend overlay" action={<ScopePicker scope={scope} onScope={setScope}/>}>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)',marginBottom:18}}>
-          <KPI k="your_hours" v={fmtHM(meTotal)} sub={scopeLabel(scope)} tone="flat"/>
-          <KPI k={`${friend.name}_hours`} v={fmtHM(frTotal)} sub={scopeLabel(scope)}/>
-          <KPI k="lead" v={`${meTotal>=frTotal?'+':'−'}${fmtHM(Math.abs(meTotal-frTotal))}`} sub={`vs ${friend.name}`} tone={meTotal>=frTotal?'up':'down'}/>
-          <KPI k="comparing_vs" v={friend.name} sub={`streak ${friend.streak}d`}/>
-        </div>
-        <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
-          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.16em',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>compare vs</span>
-          <div style={{position:'relative'}}>
-            <button onClick={()=>setOpen(p=>!p)} style={{...Btn.sm,display:'inline-flex',alignItems:'center',gap:8}}>
-              <span style={{width:8,height:8,background:friend.color}}/><span style={{color:'var(--v1-fg)'}}>{friend.name}</span><span style={{color:'var(--v1-fg-muted)'}}>▾</span>
-            </button>
-            {open&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:30,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',minWidth:160,boxShadow:'0 12px 30px rgba(0,0,0,0.5)'}}>
-              {others.map(u=><button key={u.name} onClick={()=>{setFrName(u.name);setOpen(false);}} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',background:u.name===frName?'rgba(79,123,255,0.1)':'transparent',border:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',textAlign:'left'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.08)'} onMouseLeave={e=>e.currentTarget.style.background=u.name===frName?'rgba(79,123,255,0.1)':'transparent'}><span style={{width:7,height:7,background:u.color}}/>{u.name}</button>)}
-            </div>}
+      {/* members list */}
+      <Block label="network.members" meta={`${all.length} member${all.length!==1?'s':''}`}
+        action={<button onClick={()=>{setAdding(a=>!a);setError('');}} style={{...Btn.sm,background:adding?'var(--v1-accent)':'transparent',color:adding?'var(--v1-bg)':'var(--v1-fg-2)',borderColor:adding?'var(--v1-accent)':'var(--v1-rule)'}}>
+          {adding?'cancel':'+ add friend'}
+        </button>}>
+
+        {/* add friend form */}
+        {adding&&(
+          <div style={{marginBottom:16,padding:14,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)'}}>
+            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:10,fontFamily:'var(--v1-mono)'}}>add study partner</div>
+            <div style={{display:'flex',gap:8,alignItems:'center',marginBottom:error?8:0}}>
+              <input ref={inputRef} value={inputName} onChange={e=>{setInputName(e.target.value);setError('');}}
+                placeholder="their display name"
+                style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
+                onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
+                onKeyDown={e=>{if(e.key==='Enter')addFriend();if(e.key==='Escape'){setAdding(false);setError('');}}}
+              />
+              <div style={{display:'flex',gap:3,flexShrink:0}}>
+                {FRIEND_COLORS.map(c=>(
+                  <button key={c} onClick={()=>setInputColor(c)}
+                    style={{width:18,height:18,background:c,border:inputColor===c?'2px solid var(--v1-fg)':'1px solid transparent',padding:0,cursor:'pointer',flexShrink:0}}/>
+                ))}
+              </div>
+              <button onClick={addFriend}
+                style={{...Btn.sm,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)',padding:'6px 14px',flexShrink:0,fontWeight:600}}>
+                add →
+              </button>
+            </div>
+            {error&&<div style={{fontSize:10,color:'var(--v1-down)',fontFamily:'var(--v1-mono)',marginTop:6}}>✕ {error}</div>}
+            <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:8,letterSpacing:'0.04em'}}>
+              friends are stored locally · share your link to connect for real
+            </div>
           </div>
-        </div>
-        <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
-      </Block>
-      <Block label="network.members" meta={`${D.leaderboard.length} members`}>
-        <Tbl cols={['#','who','streak','wk hrs','trend']} widths={['28px','auto','60px','80px','120px']}>
-          {D.leaderboard.map((u,i)=>(
-            <Row key={u.name} hi={u.isYou}>
-              <Cell mono dim>#{i+1}</Cell>
-              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:u.color}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}{u.online&&<span title="online" style={{width:7,height:7,background:'#22C55E',borderRadius:'50%',boxShadow:'0 0 5px #22C55E88',flexShrink:0}}/>}</span></Cell>
-              <Cell mono dim>{u.streak}d</Cell>
-              <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
-              <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
-            </Row>
-          ))}
-        </Tbl>
+        )}
+
+        {friends.length===0&&!adding?(
+          <EmptyState icon="+" title="no study partners yet"
+            hint="add a friend to track each other's progress"
+            action={<button onClick={()=>setAdding(true)} style={{...Btn.sm,marginTop:4}}>+ add friend</button>}
+          />
+        ):(
+          <Tbl cols={['#','who','streak','wk hrs','']} widths={['28px','auto','60px','80px','32px']}>
+            {all.map((u,i)=>(
+              <Row key={u.name} hi={u.isYou}>
+                <Cell mono dim>#{i+1}</Cell>
+                <Cell>
+                  <span style={{display:'inline-flex',alignItems:'center',gap:8}}>
+                    <span style={{width:6,height:6,background:u.color,flexShrink:0}}/>
+                    {u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}
+                    {u.online&&<span style={{width:6,height:6,background:'#22C55E',borderRadius:'50%',flexShrink:0}}/>}
+                  </span>
+                </Cell>
+                <Cell mono dim>{u.streak}d</Cell>
+                <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
+                <Cell>
+                  {!u.isYou&&(
+                    <button onClick={()=>removeFriend(u.id)}
+                      style={{background:'transparent',border:'none',color:'var(--v1-fg-muted)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'0 4px'}}
+                      onMouseEnter={e=>e.currentTarget.style.color='var(--v1-down)'}
+                      onMouseLeave={e=>e.currentTarget.style.color='var(--v1-fg-muted)'}>
+                      ✕
+                    </button>
+                  )}
+                </Cell>
+              </Row>
+            ))}
+          </Tbl>
+        )}
       </Block>
     </div>
   );
