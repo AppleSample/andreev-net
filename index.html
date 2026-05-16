@@ -1645,7 +1645,7 @@ function Heatmap({weeklyTarget,setWeeklyTarget,sessions=[],heatmap,peakHour,peak
       </Block>
       <Block label={mode==='focus'?'hourly_focus.grid':'daily_totals.grid'} meta={mode==='focus'?'focus quality · last 7 days':'hours studied · last 18 weeks'}
         action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'focus',label:'FOCUS QUALITY',icon:'◰'},{id:'daily',label:'HOURS / DAY',icon:'▦'}]}/>}>
-        {mode==='focus'?<FocusGrid heatmap={heatmap}/>:<div style={{padding:'20px 0',color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)',fontSize:11}}>daily contribution grid · coming soon</div>}
+        {mode==='focus'?<FocusGrid heatmap={heatmap}/>:<DailyHeatmap sessions={sessions}/>}
       </Block>
       <Block label="best_windows" meta="top 3 hour-of-day · last 30d">
         <EmptyState icon="◷" title="no peak hours identified yet" hint="complete more sessions to discover your best study windows"/>
