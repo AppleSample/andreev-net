@@ -1611,7 +1611,8 @@ function CommandPalette({sessions,onClose,onNav,onStartSession}){
    Enable once at: app.netlify.com → your site → Identity → Enable → External Providers → Google */
 
 function AuthScreen({onAuth}){
-  const[mode,setMode]=useState('signup');
+  // default to sign-in if this browser already has a registered account
+  const[mode,setMode]=useState(()=>localAuth._users().length>0?'signin':'signup');
   const[name,setName]=useState('');
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
