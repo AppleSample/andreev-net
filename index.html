@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>andreev.net</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+@keyframes pblink{0%,49%{opacity:1}50%,100%{opacity:0}}
+@keyframes v1pulse{0%,100%{opacity:1}50%{opacity:0.45}}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#0A0B0D;}
+#root{height:100%;display:flex;flex-direction:column;}
+.v1{
+  --v1-bg:#0A0B0D;--v1-bg-elev:#0F1115;--v1-bg-elev-2:#15181D;--v1-bg-hover:#1B1F25;
+  --v1-fg:#ECEEF2;--v1-fg-2:#B5BDC8;--v1-fg-3:#8A95A4;--v1-fg-muted:#5C6776;
+  --v1-rule:#1F2329;--v1-rule-strong:#2C323A;
+  --v1-accent:#4F7BFF;--v1-up:#6BD89A;--v1-down:#E5484D;
+  --v1-mono:'JetBrains Mono',ui-monospace,monospace;
+  --v1-sans:'Inter Tight',system-ui,sans-serif;
+  background-image:linear-gradient(to right,rgba(255,255,255,0.018) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.018) 1px,transparent 1px);
+  background-size:8px 8px;
+}
+.v1-pulse{animation:v1pulse 1.4s ease-in-out infinite;}
+.v1 *{box-sizing:border-box;}
+.v1 ::-webkit-scrollbar{width:5px;height:5px;}
+.v1 ::-webkit-scrollbar-track{background:transparent;}
+.v1 ::-webkit-scrollbar-thumb{background:var(--v1-rule-strong);}
+.v1 button:focus-visible{outline:1px solid var(--v1-accent);outline-offset:1px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useMemo,useCallback}=React;
+
+/* ══════════════════════════════════════════════════════════════
+   AUTH MODULE — localStorage-backed, Supabase-ready
+   To swap to Supabase: replace signUp / signIn / signOut below
+   ══════════════════════════════════════════════════════════════ */
+const auth={
+  _key:'andreev_users',
+  _sessionKey:'andreev_session',
+  _users(){try{return JSON.parse(localStorage.getItem(this._key)||'[]');}catch{return[];}},
+  _save(users){localStorage.setItem(this._key,JSON.stringify(users));},
+  getUser(){try{return JSON.parse(localStorage.getItem(this._sessionKey)||'null');}catch{return null;}},
+  signUp(name,email,password){
+    const users=this._users();
+    if(users.find(u=>u.email.toLowerCase()===email.toLowerCase()))
+      return{error:'an account with this email already exists'};
+    if(password.length<6) return{error:'password must be at least 6 characters'};
+    const user={id:Date.now().toString(),name:name.trim(),email:email.trim().toLowerCase(),password,createdAt:new Date().toISOString()};
+    this._save([...users,user]);
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
+  },
+  signIn(email,password){
+    const user=this._users().find(u=>u.email.toLowerCase()===email.trim().toLowerCase());
+    if(!user) return{error:'no account found with that email'};
+    if(user.password!==password) return{error:'incorrect password'};
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
+  },
+  signOut(){localStorage.removeItem(this._sessionKey);},
+  signInWithGoogle(googleData){
+    /* googleData: {id, name, email} — extracted from GSI JWT */
+    const users=this._users();
+    let user=users.find(u=>u.email.toLowerCase()===googleData.email.toLowerCase());
+    if(!user){
+      user={id:googleData.id||Date.now().toString(),name:googleData.name,email:googleData.email.toLowerCase(),provider:'google',createdAt:new Date().toISOString()};
+      this._save([...users,user]);
+    }
+    const session={id:user.id,name:user.name,email:user.email};
+    localStorage.setItem(this._sessionKey,JSON.stringify(session));
+    return{user:session};
+  },
+};
+
+/* ── GOOGLE OAUTH CONFIG ──
+   Replace with your real Client ID from console.cloud.google.com
+   (Create project → APIs & Services → Credentials → OAuth 2.0 Client ID)
+   Authorised origins must include your deployment URL (e.g. https://andreev.netlify.app) */
+const GOOGLE_CLIENT_ID='YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+function decodeGoogleJwt(token){
+  try{
+    const b64=token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    return JSON.parse(atob(b64));
+  }catch{return null;}
+}
+
+/* ── DATA ── */
+const _now=new Date();
+const D={
+  leaderboard:[
+    {name:'you',isYou:true,online:true,color:'#4F7BFF',weekTime:'0h 00m',streak:0,subjects:0,trend:[]},
+  ],
+  weekBars:(()=>{const days=['mon','tue','wed','thu','fri','sat','sun'];const dow=(_now.getDay()+6)%7;return days.map((day,i)=>({day,hours:0,isToday:i===dow}));})(),
+  subjects:[],
+  sessions:[],
+  today:{
+    day:_now.getDate(),
+    month:_now.toLocaleDateString('en-GB',{month:'short'}).toLowerCase(),
+    monthName:`${_now.toLocaleDateString('en-GB',{month:'long'})} ${_now.getFullYear()}`,
+    firstDow:(new Date(_now.getFullYear(),_now.getMonth(),1).getDay()+6)%7,
+    daysInMonth:new Date(_now.getFullYear(),_now.getMonth()+1,0).getDate(),
+  },
+  events:[],
+  todos:[],
+  heatmap:(()=>{const out=[];for(let d=0;d<7;d++){out.push(Array(24).fill(0));}return out;})(),
+};
+
+/* ── SCOPE SYSTEM ── */
+const SCOPES=[
+  {id:'1d', label:'1D', n:24,x:i=>String(i).padStart(2,'0'),      unit:'hour'},
+  {id:'7d', label:'7D', n:7, x:i=>['mon','tue','wed','thu','fri','sat','sun'][i],unit:'day'},
+  {id:'30d',label:'30D',n:30,x:i=>`${i+1}`,                       unit:'day'},
+  {id:'90d',label:'90D',n:13,x:i=>`w${i+1}`,                      unit:'week'},
+  {id:'all',label:'ALL',n:12,x:i=>['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][i],unit:'month'},
+];
+const SCOPE_BASE={'1d':0.18,'7d':3.0,'30d':2.6,'90d':18,'all':76};
+const SUBJ_COLORS=['#4F7BFF','#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A'];
+function seed(s,i){return(Math.sin(s*12.9898+i*78.233)*43758.5453)%1;}
+function genSeries(scope,s,scale=1){const c=SCOPES.find(x=>x.id===scope),base=SCOPE_BASE[scope]*scale;return Array.from({length:c.n},(_,i)=>{const w=Math.sin(i*0.7+s)*0.35+Math.cos(i*0.4+s*1.7)*0.22+Math.sin(i*0.21+s*0.5)*0.18,n=Math.abs(seed(s,i))*0.25,v=base*(1+w+n);return Math.max(0,v);});}
+function fmtHM(h){const H=Math.floor(h),M=Math.round((h-H)*60);return`${H}h ${String(M).padStart(2,'0')}m`;}
+function scopeLabel(s){return({'1d':'today','7d':'this week','30d':'last 30 days','90d':'last 90 days','all':'all time'})[s];}
+function userSeries(i,scope){return genSeries(scope,3+i*1.7,1-i*0.06);}
+function subjSeries(i,scope){return genSeries(scope,11+i*2.3,0.5-i*0.07);}
+function sumH(v){return v.reduce((a,x)=>a+x,0);}
+
+/* ── ATOMS ── */
+function useTick(ms=1000){const[t,setT]=useState(0);useEffect(()=>{const id=setInterval(()=>setT(x=>x+1),ms);return()=>clearInterval(id);},[ms]);return t;}
+function fmtClock(s){const h=Math.floor(s/3600).toString().padStart(2,'0'),m=Math.floor((s%3600)/60).toString().padStart(2,'0'),sec=(s%60).toString().padStart(2,'0');return`${h}:${m}:${sec}`;}
+function LiveClock({start=4462,size=14}){const t=useTick(1000);return<span style={{fontFamily:'var(--v1-mono)',fontSize:size,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{fmtClock(start+t)}</span>;}
+function Cursor({size='0.85em',color}){return<span style={{display:'inline-block',width:size,height:size,background:color||'currentColor',verticalAlign:'-0.08em',animation:'pblink 1.06s steps(2,jump-none) infinite',marginLeft:'0.15em'}}/>;}
+function Spark({data,w=120,h=28,color='currentColor',fill=false,sw=1.25}){
+  if(!data||data.length<2)return null;
+  const mx=Math.max(...data,1),mn=Math.min(...data,0),rng=mx-mn||1,step=w/(data.length-1);
+  const pts=data.map((v,i)=>[i*step,h-((v-mn)/rng)*h]);
+  const lp=pts.map(([x,y])=>`${x},${y}`).join(' ');
+  const ap=`M0,${h} L${pts.map(([x,y])=>`${x},${y}`).join(' L')} L${w},${h} Z`;
+  return<svg width={w} height={h} style={{display:'block',overflow:'visible'}}>{fill&&<path d={ap} fill={color} opacity="0.12"/>}<polyline points={lp} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/><circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r={1.6} fill={color}/></svg>;
+}
+
+function SparkWide({data,h=48,color='currentColor',fill=false,sw=1.25}){
+  const ref=useRef(null);
+  const[w,setW]=useState(600);
+  useEffect(()=>{
+    if(!ref.current)return;
+    const ro=new ResizeObserver(e=>{const v=e[0].contentRect.width;if(v>0)setW(Math.floor(v));});
+    ro.observe(ref.current);
+    return()=>ro.disconnect();
+  },[]);
+  return<div ref={ref} style={{width:'100%'}}><Spark data={data} w={w} h={h} color={color} fill={fill} sw={sw}/></div>;
+}
+
+/* ── V1 PRIMITIVES ── */
+const Btn={
+  sm:{fontFamily:'var(--v1-mono)',fontSize:11,padding:'6px 12px',background:'transparent',color:'var(--v1-fg-2)',border:'1px solid var(--v1-rule-strong)',cursor:'pointer',letterSpacing:'0.04em'},
+  md:{fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 18px',background:'transparent',color:'var(--v1-fg-2)',border:'1px solid var(--v1-rule-strong)',cursor:'pointer',letterSpacing:'0.04em'},
+};
+
+function Block({label,meta,action,children,pad='18px 18px 22px',noBorder}){
+  return(
+    <section style={{borderBottom:noBorder?'none':'1px solid var(--v1-rule)'}}>
+      <header style={{display:'flex',alignItems:'center',gap:12,padding:'10px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+        <span style={{color:'var(--v1-accent)'}}>◆</span>
+        <span style={{color:'var(--v1-fg-2)'}}>{label}</span>
+        {meta&&<span>· {meta}</span>}
+        <span style={{flex:1}}/>
+        {action}
+      </header>
+      <div style={{padding:pad}}>{children}</div>
+    </section>
+  );
+}
+
+function Lnk({children,onClick}){return<button onClick={onClick} style={{background:'transparent',border:'none',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.16em',color:'var(--v1-accent)'}}>{children}</button>;}
+
+function Tbl({cols,widths,children}){
+  const gt=widths.join(' ');
+  return(
+    <div style={{border:'1px solid var(--v1-rule)'}}>
+      <div style={{display:'grid',gridTemplateColumns:gt,padding:'0 12px',height:26,alignItems:'center',background:'var(--v1-bg-elev)',borderBottom:'1px solid var(--v1-rule)',fontSize:9,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+        {cols.map((c,i)=><span key={i} style={{padding:'0 6px',textAlign:/^(dur|prod|wk|all|share|trend|hrs|min|pct|sess|rate|days|streak|subj|d_vs)/i.test(c)?'right':'left'}}>{c}</span>)}
+      </div>
+      <div>{React.Children.map(children,(child,i)=>child&&React.cloneElement(child,{__gt:gt,__i:i}))}</div>
+    </div>
+  );
+}
+
+function Row({children,hi,__gt,__i,onClick}){
+  const base=hi?'rgba(79,123,255,0.07)':(__i%2===0?'transparent':'rgba(255,255,255,0.012)');
+  return(
+    <div onClick={onClick} style={{display:'grid',gridTemplateColumns:__gt,padding:'0 12px',height:32,alignItems:'center',borderBottom:'1px solid var(--v1-rule)',background:base,cursor:onClick?'pointer':'default',transition:'background 80ms',fontFamily:'var(--v1-mono)'}}
+      onMouseEnter={e=>!hi&&(e.currentTarget.style.background='rgba(79,123,255,0.05)')}
+      onMouseLeave={e=>!hi&&(e.currentTarget.style.background=base)}
+    >{children}</div>
+  );
+}
+
+function Cell({children,mono,dim,sm,right,tone}){
+  const tc={up:'var(--v1-up)',down:'var(--v1-down)',flat:'var(--v1-fg-2)'};
+  return<span style={{padding:'0 6px',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontFamily:mono?'var(--v1-mono)':'var(--v1-sans)',fontSize:sm?10:11,color:tone?tc[tone]:(dim?'var(--v1-fg-3)':'var(--v1-fg)'),textAlign:right?'right':'left',fontVariantNumeric:'tabular-nums',letterSpacing:mono?'0.01em':'0'}}>{children}</span>;
+}
+
+function WeekBars({bars}){
+  const mx=Math.max(...bars.map(b=>b.hours),5);
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:1}}>
+      {bars.map((b,i)=>(
+        <div key={i} style={{display:'flex',flexDirection:'column',gap:6}}>
+          <div style={{height:100,display:'flex',alignItems:'flex-end',position:'relative',borderBottom:'1px solid var(--v1-rule)'}}>
+            <div style={{position:'absolute',inset:0,pointerEvents:'none'}}>
+              {[0.25,0.5,0.75].map(p=><div key={p} style={{position:'absolute',left:0,right:0,top:`${p*100}%`,height:1,background:'var(--v1-rule)',opacity:0.5}}/>)}
+            </div>
+            <div style={{width:'100%',height:`${(b.hours/mx)*100}%`,background:b.isToday?'var(--v1-accent)':'var(--v1-fg-3)',minHeight:1}}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:1}}>
+            <span style={{fontSize:11,color:b.isToday?'var(--v1-accent)':'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums'}}>{b.hours.toFixed(1)}</span>
+            <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.04em'}}>{b.day}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScopePicker({scope,onScope,scopes=SCOPES}){
+  return(
+    <div style={{display:'inline-flex',border:'1px solid var(--v1-rule)',background:'var(--v1-bg)'}}>
+      {scopes.map(s=>{const a=scope===s.id;return<button key={s.id} onClick={()=>onScope(s.id)} style={{fontFamily:'var(--v1-mono)',fontSize:10,background:a?'var(--v1-accent)':'transparent',color:a?'var(--v1-bg)':'var(--v1-fg-3)',border:'none',padding:'5px 10px',cursor:'pointer',letterSpacing:'0.12em',fontWeight:a?600:500}}>{s.label}</button>;})}
+    </div>
+  );
+}
+
+function BigChart({series,scope,height=240,yLabel='h',kind='line',fillFirst=false}){
+  const wrap=useRef(null);
+  const[hov,setHov]=useState(null);
+  const[W,setW]=useState(800);
+  useEffect(()=>{if(!wrap.current)return;const ro=new ResizeObserver(e=>{const w=e[0].contentRect.width;if(w>0)setW(Math.floor(w));});ro.observe(wrap.current);return()=>ro.disconnect();},[]);
+  const conf=SCOPES.find(s=>s.id===scope),n=series[0]?.values.length||1;
+  const pL=44,pR=16,pT=12,pB=28,H=height,iW=W-pL-pR,iH=H-pT-pB;
+  const all=series.flatMap(s=>s.values),mx=Math.max(...all,0.1),yM=mx*1.12;
+  const step=iW/Math.max(1,n-1),xA=i=>pL+i*step,yA=v=>pT+iH-(v/yM)*iH;
+  const onMove=e=>{const r=e.currentTarget.getBoundingClientRect(),px=e.clientX-r.left,x=px-pL,i=Math.max(0,Math.min(n-1,Math.round(x/step)));setHov({i,px:xA(i)});};
+  const yTks=[0,0.25,0.5,0.75,1].map(p=>({y:pT+iH-p*iH,v:yM*p}));
+  const xStr=Math.max(1,Math.ceil(n/7)),xTks=Array.from({length:n},(_,i)=>i).filter(i=>i%xStr===0||i===n-1);
+  return(
+    <div ref={wrap} style={{position:'relative',width:'100%'}}>
+      <svg width={W} height={H} onMouseMove={onMove} onMouseLeave={()=>setHov(null)} style={{display:'block',cursor:'crosshair'}}>
+        {yTks.map((t,i)=><g key={i}><line x1={pL} x2={W-pR} y1={t.y} y2={t.y} stroke="var(--v1-rule)" strokeWidth="1"/><text x={pL-6} y={t.y+3} fontSize="9" textAnchor="end" fill="var(--v1-fg-muted)" fontFamily="var(--v1-mono)">{t.v<10?t.v.toFixed(1):Math.round(t.v)}{yLabel}</text></g>)}
+        {xTks.map(i=><g key={i}><line x1={xA(i)} x2={xA(i)} y1={pT+iH} y2={pT+iH+4} stroke="var(--v1-rule-strong)" strokeWidth="1"/><text x={xA(i)} y={H-8} fontSize="9" textAnchor="middle" fill="var(--v1-fg-muted)" fontFamily="var(--v1-mono)">{conf.x(i)}</text></g>)}
+        <line x1={pL} x2={W-pR} y1={pT+iH} y2={pT+iH} stroke="var(--v1-rule-strong)" strokeWidth="1"/>
+        {series.map((s,idx)=>{const pts=s.values.map((v,i)=>`${xA(i)},${yA(v)}`).join(' '),ad=`M${xA(0)},${pT+iH} L${s.values.map((v,i)=>`${xA(i)},${yA(v)}`).join(' L')} L${xA(n-1)},${pT+iH} Z`,filled=kind==='area'||(fillFirst&&idx===0);return<g key={idx} opacity={s.dim?0.4:1}>{filled&&<path d={ad} fill={s.color} opacity="0.10"/>}<polyline points={pts} fill="none" stroke={s.color} strokeWidth={s.dim?1:1.5} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={s.dashed?'3 3':'none'}/></g>;})}
+        {hov&&<g><line x1={hov.px} x2={hov.px} y1={pT} y2={pT+iH} stroke="var(--v1-fg-muted)" strokeWidth="1" strokeDasharray="2 3"/>{series.map((s,idx)=><circle key={idx} cx={hov.px} cy={yA(s.values[hov.i])} r="3" fill={s.color} stroke="var(--v1-bg)" strokeWidth="1"/>)}</g>}
+      </svg>
+      <div style={{display:'flex',alignItems:'center',gap:12,padding:'6px 16px 0',flexWrap:'wrap',fontSize:10,color:'var(--v1-fg-3)',letterSpacing:'0.06em',fontFamily:'var(--v1-mono)'}}>
+        {series.map((s,i)=><span key={i} style={{display:'inline-flex',alignItems:'center',gap:5,opacity:s.dim?0.6:1}}><span style={{width:8,height:2,background:s.color}}/><span style={{color:'var(--v1-fg-2)'}}>{s.name}</span>{hov&&<span style={{color:'var(--v1-fg-muted)',fontVariantNumeric:'tabular-nums'}}>· <span style={{color:s.color}}>{s.values[hov.i].toFixed(1)}{yLabel}</span></span>}</span>)}
+        <span style={{flex:1}}/>{hov&&<span style={{color:'var(--v1-fg-muted)'}}>{conf.unit} <span style={{color:'var(--v1-fg-2)'}}>{conf.x(hov.i)}</span></span>}
+      </div>
+    </div>
+  );
+}
+
+function ModePicker({mode,onMode,modes}){
+  return(
+    <div style={{display:'inline-flex',border:'1px solid var(--v1-rule)'}}>
+      {modes.map(m=>{const a=mode===m.id;return<button key={m.id} onClick={()=>onMode(m.id)} style={{fontFamily:'var(--v1-mono)',fontSize:10,background:a?'var(--v1-bg-hover)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderRight:'1px solid var(--v1-rule)',padding:'5px 10px',cursor:'pointer',letterSpacing:'0.1em',display:'inline-flex',alignItems:'center',gap:5}}>{m.icon&&<span style={{color:a?'var(--v1-accent)':'var(--v1-fg-muted)'}}>{m.icon}</span>}{m.label}</button>;})}
+    </div>
+  );
+}
+
+function Modal({title,onClose,children,width=520}){
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(5,6,8,0.75)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:width,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 24px 60px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span><span style={{color:'var(--v1-fg-2)'}}>{title}</span><span style={{flex:1}}/>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
+        </div>
+        <div>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Input({value,onChange,placeholder,autoFocus,onKeyDown}){
+  return<input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} onKeyDown={onKeyDown} style={{width:'100%',boxSizing:'border-box',fontFamily:'var(--v1-mono)',fontSize:12,padding:'8px 12px',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',outline:'none',letterSpacing:'0.02em'}} onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>;
+}
+
+function KPI({k,v,sub,tone}){
+  return(
+    <div style={{padding:'14px 16px',borderRight:'1px solid var(--v1-rule)',display:'flex',flexDirection:'column',gap:4}}>
+      <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</span>
+      <span style={{fontSize:22,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:tone==='up'?'var(--v1-up)':tone==='down'?'var(--v1-down)':'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{v}</span>
+      <span style={{fontSize:10,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{sub}</span>
+    </div>
+  );
+}
+
+function MiniStat({k,v,sub,tone}){
+  return(
+    <div style={{padding:'10px 12px',borderRight:'1px solid var(--v1-rule)',display:'flex',flexDirection:'column',gap:3}}>
+      <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</span>
+      <span style={{fontSize:20,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:tone==='up'?'var(--v1-up)':tone==='down'?'var(--v1-down)':'var(--v1-fg)',fontFamily:'var(--v1-mono)'}}>{v}</span>
+      <span style={{fontSize:10,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',fontFamily:'var(--v1-mono)'}}>{sub}</span>
+    </div>
+  );
+}
+
+function MiniBlock({k,v,tone}){
+  return(
+    <div style={{padding:'6px 10px',border:'1px solid var(--v1-rule)',display:'flex',flexDirection:'column',gap:2,background:'var(--v1-bg)'}}>
+      <span style={{fontSize:8,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</span>
+      <span style={{fontFamily:'var(--v1-mono)',fontSize:14,fontVariantNumeric:'tabular-nums',color:tone==='up'?'var(--v1-up)':'var(--v1-fg)'}}>{v}</span>
+    </div>
+  );
+}
+
+function EmptyState({icon='◇',title,hint,action}){
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'44px 24px',gap:10,textAlign:'center'}}>
+      <span style={{fontSize:26,color:'var(--v1-fg-muted)'}}>{icon}</span>
+      <span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg-2)',letterSpacing:'0.04em'}}>{title}</span>
+      {hint&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',letterSpacing:'0.04em'}}>{hint}</span>}
+      {action}
+    </div>
+  );
+}
+
+/* ── DASHBOARD SESSION BLOCK ── */
+function DashSessionBlock({sessionState,onNav}){
+  const tick=useTick(1000);
+  const elapsed=sessionState&&sessionState.active
+    ?(sessionState.paused
+      ?sessionState.elapsed
+      :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000))
+    :0;
+
+  if(!sessionState||!sessionState.active){
+    return(
+      <Block label="session.active" meta="no session running">
+        <div style={{padding:'10px 0',display:'flex',flexDirection:'column',gap:8}}>
+          <div style={{fontSize:12,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>no active session</div>
+          <div style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>click begin → to start tracking</div>
+        </div>
+      </Block>
+    );
+  }
+
+  const subjData=D.subjects.find(s=>s.name===sessionState.subject);
+  const color=subjData?subjData.color:'var(--v1-accent)';
+  return(
+    <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+        <span style={{width:6,height:6,background:sessionState.paused?'var(--v1-fg-muted)':color,borderRadius:'50%',boxShadow:sessionState.paused?'none':`0 0 8px ${color}`,flexShrink:0}} className={sessionState.paused?'':'v1-pulse'}/>
+        <span style={{fontSize:10,letterSpacing:'0.14em',color:sessionState.paused?'var(--v1-fg-muted)':color,fontFamily:'var(--v1-mono)'}}>{sessionState.paused?'● PAUSED':'● LIVE'}</span>
+        <span style={{flex:1}}/>
+        <span style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>{sessionState.subject}</span>
+      </div>
+      <div style={{fontSize:40,lineHeight:1,letterSpacing:'-0.04em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',marginBottom:10,fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums'}}>{fmtClock(elapsed)}</div>
+      <button onClick={()=>onNav('timer')} style={{...Btn.sm,borderColor:color,color:color}}>go to session →</button>
+    </Block>
+  );
+}
+
+/* ── DASHBOARD SESSION HERO (replaces hours block when session is active) ── */
+function DashSessionHero({sessionState,onNav}){
+  const tick=useTick(1000);
+  const elapsed=sessionState.paused
+    ?sessionState.elapsed
+    :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000);
+  const subjData=D.subjects.find(s=>s.name===sessionState.subject);
+  const color=subjData?subjData.color:'var(--v1-accent)';
+  return(
+    <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+        <span style={{width:8,height:8,background:sessionState.paused?'var(--v1-fg-muted)':color,borderRadius:'50%',boxShadow:sessionState.paused?'none':`0 0 10px ${color}`,flexShrink:0}} className={sessionState.paused?'':'v1-pulse'}/>
+        <span style={{fontSize:11,letterSpacing:'0.14em',color:sessionState.paused?'var(--v1-fg-muted)':color,fontFamily:'var(--v1-mono)',fontWeight:600}}>{sessionState.paused?'● PAUSED':'● LIVE'}</span>
+        <span style={{flex:1}}/>
+        <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>started {new Date(sessionState.startedAt).toTimeString().slice(0,5)}</span>
+      </div>
+      <div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:14}}>
+        <span style={{fontSize:64,lineHeight:0.88,letterSpacing:'-0.045em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{fmtClock(elapsed)}</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:8,height:8,background:color,borderRadius:1,flexShrink:0}}/><span style={{fontFamily:'var(--v1-sans)',fontSize:14,color:'var(--v1-fg-2)'}}>{sessionState.subject}</span></span>
+      </div>
+      <button onClick={()=>onNav('timer')} style={{...Btn.sm,borderColor:color,color:color,letterSpacing:'0.08em'}}>go to session →</button>
+    </Block>
+  );
+}
+
+/* ── DASHBOARD ── */
+function DashAgenda({onNav}){
+  const today=D.today.day;
+  const evts=D.events.filter(e=>e.day===today).sort((a,b)=>a.time.localeCompare(b.time));
+  const[ts,setTs]=useState(()=>{const m={};D.todos.forEach(t=>{m[t.id]=t.done;});return m;});
+  const todos=D.todos.filter(t=>t.day===today);
+  const done=todos.filter(t=>ts[t.id]).length;
+  const pct=todos.length?(done/todos.length)*100:0;
+  const next=evts.find(e=>e.time>'14:32')||evts[evts.length-1];
+  if(evts.length===0&&todos.length===0){
+    return(
+      <EmptyState icon="📅" title="no events or tasks today"
+        hint="add events and todos to the calendar to see your day here"
+        action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
+      />
+    );
+  }
+  return(
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
+        <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
+        <MiniStat k="todos" v={`${done}/${todos.length}`} sub={`${pct.toFixed(0)}% done`} tone={pct===100?'up':'flat'}/>
+        <MiniStat k="focus_due" v={todos.filter(t=>!ts[t.id]&&t.priority==='high').length} sub="high priority" tone={todos.filter(t=>!ts[t.id]&&t.priority==='high').length>0?'down':'flat'}/>
+      </div>
+      {todos.length>0&&<div style={{display:'flex',gap:3,marginTop:10,height:4}}>{todos.map(t=><div key={t.id} style={{flex:1,background:ts[t.id]?'var(--v1-up)':'var(--v1-bg-elev-2)',transition:'background 120ms'}}/>)}</div>}
+      {evts.length>0&&<div style={{marginTop:12}}>
+        <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>▸ events</div>
+        <div style={{border:'1px solid var(--v1-rule)'}}>
+          {evts.map((e,i)=>{
+            const isNext=next&&e.time===next.time&&!evts.slice(0,i).some(x=>x.time===next.time);
+            return<div key={i} style={{display:'grid',gridTemplateColumns:'4px 52px 1fr auto',alignItems:'center',gap:10,padding:'7px 10px',borderBottom:i<evts.length-1?'1px solid var(--v1-rule)':'none',background:isNext?'rgba(79,123,255,0.06)':'transparent'}}>
+              <span style={{width:4,height:16,background:e.color,flexShrink:0}}/>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:isNext?'var(--v1-accent)':'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
+              <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.title}{e.flagged&&<span style={{color:'var(--v1-down)',marginLeft:6}}>!</span>}</span>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',whiteSpace:'nowrap'}}>{e.subject||'—'}</span>
+            </div>;
+          })}
+        </div>
+      </div>}
+      {todos.length>0&&<div style={{marginTop:12}}>
+        <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,display:'flex',alignItems:'center',gap:8,fontFamily:'var(--v1-mono)'}}>
+          <span>▸ todos</span><span style={{flex:1}}/><span style={{color:'var(--v1-fg-3)'}}>{done}/{todos.length}</span>
+        </div>
+        <div style={{border:'1px solid var(--v1-rule)'}}>
+          {todos.map((t,i)=>{const isDone=!!ts[t.id];return(
+            <div key={t.id} style={{display:'grid',gridTemplateColumns:'4px 16px 1fr auto auto',alignItems:'center',gap:10,padding:'7px 10px',borderBottom:i<todos.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.55:1,transition:'opacity 120ms'}}
+              onClick={()=>setTs(s=>({...s,[t.id]:!s[t.id]}))}
+              onMouseEnter={e=>!isDone&&(e.currentTarget.style.background='rgba(79,123,255,0.04)')}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+              <span style={{width:4,height:16,background:t.color,flexShrink:0}}/>
+              <span style={{width:12,height:12,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-rule-strong)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:9,fontWeight:700,flexShrink:0}}>{isDone?'✓':''}</span>
+              <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.title}</span>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,padding:'1px 5px',color:t.priority==='high'?'var(--v1-down)':t.priority==='med'?'#F2C14E':'var(--v1-fg-muted)',border:'1px solid currentColor',letterSpacing:'0.1em',textTransform:'uppercase',whiteSpace:'nowrap'}}>{t.priority?.[0]||'·'}</span>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',minWidth:40,textAlign:'right'}}>{t.subject||'—'}</span>
+            </div>
+          );})}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+function DashAgendaCompact({onNav}){
+  const today=D.today.day;
+  const evts=D.events.filter(e=>e.day===today).sort((a,b)=>a.time.localeCompare(b.time));
+  const todos=D.todos.filter(t=>t.day===today);
+  const[ts,setTs]=useState(()=>{const m={};D.todos.forEach(t=>{m[t.id]=t.done;});return m;});
+  const done=todos.filter(t=>ts[t.id]).length;
+  const highPri=todos.filter(t=>!ts[t.id]&&t.priority==='high');
+  const next=evts.find(e=>e.time>'14:32')||evts[evts.length-1];
+  if(evts.length===0&&todos.length===0){
+    return(
+      <EmptyState icon="📅" title="no events or tasks today"
+        hint="add events and todos to the calendar to see your day here"
+        action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
+      />
+    );
+  }
+  return(
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      {/* 3-stat strip */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
+        <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
+        <MiniStat k="todos" v={`${done}/${todos.length}`} sub={`${todos.length?(done/todos.length*100).toFixed(0):0}% done`} tone={done===todos.length&&todos.length>0?'up':'flat'}/>
+        <MiniStat k="urgent" v={highPri.length} sub="high priority" tone={highPri.length>0?'down':'flat'}/>
+      </div>
+      {/* events — compact */}
+      {evts.length>0&&<div style={{border:'1px solid var(--v1-rule)'}}>
+        {evts.map((e,i)=>{
+          const isNext=next&&e.time===next.time&&!evts.slice(0,i).some(x=>x.time===next.time);
+          return<div key={i} style={{display:'grid',gridTemplateColumns:'3px 48px 1fr auto',alignItems:'center',gap:8,padding:'6px 10px',borderBottom:i<evts.length-1?'1px solid var(--v1-rule)':'none',background:isNext?'rgba(79,123,255,0.06)':'transparent'}}>
+            <span style={{width:3,height:14,background:e.color,flexShrink:0}}/>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:isNext?'var(--v1-accent)':'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{e.time}</span>
+            <span style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.title}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',whiteSpace:'nowrap'}}>{e.subject||''}</span>
+          </div>;
+        })}
+      </div>}
+      {/* high-priority todos only */}
+      {highPri.length>0&&<div>
+        <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:5,fontFamily:'var(--v1-mono)'}}>▸ urgent</div>
+        <div style={{border:'1px solid var(--v1-rule)'}}>
+          {highPri.map((t,i)=>{const isDone=!!ts[t.id];return(
+            <div key={t.id} style={{display:'grid',gridTemplateColumns:'3px 14px 1fr auto',alignItems:'center',gap:8,padding:'6px 10px',borderBottom:i<highPri.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.5:1}}
+              onClick={()=>setTs(s=>({...s,[t.id]:!s[t.id]}))}>
+              <span style={{width:3,height:14,background:t.color,flexShrink:0}}/>
+              <span style={{width:11,height:11,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-down)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:8,flexShrink:0}}>{isDone?'✓':''}</span>
+              <span style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.title}</span>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)'}}>{t.subject||''}</span>
+            </div>
+          );})}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+function Dashboard({onNav,sessions,sessionState}){
+  const me=D.leaderboard.find(u=>u.isYou);
+  const secsThisWeek=sessions.reduce((acc,s)=>{
+    if(s.secs!=null)return acc+s.secs;
+    const m=s.duration?.match(/(\d+)h\s+(\d+)m/);
+    return acc+(m?parseInt(m[1])*3600+parseInt(m[2])*60:0);
+  },0);
+  const wkH=Math.floor(secsThisWeek/3600);
+  const wkM=Math.floor((secsThisWeek%3600)/60);
+  const recentSessions=sessions||D.sessions;
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.8fr) minmax(0,1fr)',height:'100%',overflow:'hidden'}}>
+
+      {/* COL LEFT — session hero (if active) OR hours hero + histogram + leaderboard */}
+      <section style={{borderRight:'1px solid var(--v1-rule)',overflowY:'auto',display:'flex',flexDirection:'column'}}>
+        {sessionState&&sessionState.active
+          ? <DashSessionHero sessionState={sessionState} onNav={onNav}/>
+          : <Block label="this_week.hours" meta="δ vs prior week">
+              {secsThisWeek===0?(
+                <EmptyState icon="⏱" title="no study hours yet this week"
+                  hint="start your first session to begin tracking"
+                  action={<button onClick={()=>onNav('timer')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>begin session →</button>}
+                />
+              ):(
+                <div>
+                  <div style={{display:'flex',alignItems:'baseline',gap:3,marginBottom:12}}>
+                    <div style={{fontSize:80,lineHeight:0.85,letterSpacing:'-0.05em',fontWeight:500,color:'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)',display:'flex',alignItems:'baseline',gap:3}}>
+                      {wkH}<span style={{color:'var(--v1-fg-muted)'}}>h</span>{String(wkM).padStart(2,'0')}<span style={{color:'var(--v1-fg-muted)'}}>m</span><Cursor size="0.35em" color="var(--v1-accent)"/>
+                    </div>
+                  </div>
+                  <SparkWide data={sessions.map(s=>s.secs!=null?s.secs/3600:((m=>{return m?parseInt(m[1])+parseInt(m[2])/60:0;})(s.duration?.match(/(\d+)h\s+(\d+)m/))))} h={72} color="var(--v1-accent)" fill sw={1.5}/>
+                </div>
+              )}
+            </Block>
+        }
+        <Block label="last_7_days.histogram" meta="hours per day · target 3h">
+          <WeekBars bars={D.weekBars}/>
+        </Block>
+        <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
+          {D.leaderboard.length<=1?(
+            <EmptyState icon="👥" title="you're the only one here"
+              hint="invite friends to study together and compete on the leaderboard"
+            />
+          ):(()=>{
+            const ranked=D.leaderboard;
+            const myIdx=ranked.findIndex(u=>u.isYou);
+            const total=ranked.length;
+            let indices;
+            if(myIdx===0) indices=[0,1,2];
+            else if(myIdx===total-1) indices=[total-3,total-2,total-1];
+            else indices=[myIdx-1,myIdx,myIdx+1];
+            const rows=indices.map(i=>({...ranked[i],rank:i+1}));
+            return(
+              <Tbl cols={['#','who','streak','wk','trend']} widths={['28px','auto','52px','76px','120px']}>
+                {rows.map((u)=>(
+                  <Row key={u.name} hi={u.isYou}>
+                    <Cell mono dim>#{u.rank}</Cell>
+                    <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:u.color,borderRadius:1,flexShrink:0}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}</span></Cell>
+                    <Cell mono dim>{u.streak}d</Cell>
+                    <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
+                    <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
+                  </Row>
+                ))}
+              </Tbl>
+            );
+          })()}
+        </Block>
+      </section>
+
+      {/* COL RIGHT — compact agenda */}
+      <section style={{overflowY:'auto',display:'flex',flexDirection:'column'}}>
+        <Block label="agenda.today" meta={_now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toLowerCase()} action={<Lnk onClick={()=>onNav('calendar')}>cal →</Lnk>} noBorder>
+          <DashAgenda onNav={onNav}/>
+        </Block>
+      </section>
+    </div>
+  );
+}
+
+/* ── TIMER ── */
+function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual}){
+  const tick=useTick(1000);
+  const elapsed=sessionState.active
+    ?(sessionState.paused
+      ?sessionState.elapsed
+      :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000))
+    :0;
+  const[rating,setRating]=useState(null);
+  const[awaitRating,setAwaitRating]=useState(false);
+  const[timerPicked,setTimerPicked]=useState(null);
+  const[timerCustom,setTimerCustom]=useState('');
+  // no-session mode
+  const[mode,setMode]=useState('timer'); // 'timer'|'log'
+  // manual log state
+  const[logSubject,setLogSubject]=useState(null);
+  const[logCustom,setLogCustom]=useState('');
+  const[logHours,setLogHours]=useState('');
+  const[logMins,setLogMins]=useState('');
+  const[logNote,setLogNote]=useState('');
+  const[logRating,setLogRating]=useState(null);
+  // pomodoro state
+  const[pomOn,setPomOn]=useState(false);
+  const[pomWork,setPomWork]=useState(25);
+  const[pomBreak,setPomBreak]=useState(5);
+  const[pomPhase,setPomPhase]=useState('work');
+  const[pomPhaseStart,setPomPhaseStart]=useState(null);
+  const[editingPom,setEditingPom]=useState(false);
+  const[pomWorkDraft,setPomWorkDraft]=useState('25');
+  const[pomBreakDraft,setPomBreakDraft]=useState('5');
+
+  // auto phase-switch
+  useEffect(()=>{
+    if(!pomOn||!pomPhaseStart||sessionState.paused)return;
+    const phaseLen=(pomPhase==='work'?pomWork:pomBreak)*60;
+    const spent=Math.floor((Date.now()-pomPhaseStart)/1000);
+    if(spent>=phaseLen){setPomPhase(p=>p==='work'?'break':'work');setPomPhaseStart(Date.now());}
+  },[tick]);
+
+  const togglePom=()=>{
+    if(!pomOn){setPomPhase('work');setPomPhaseStart(Date.now());}
+    setPomOn(p=>!p);
+  };
+  const applyPomSettings=()=>{
+    const w=parseInt(pomWorkDraft);const b=parseInt(pomBreakDraft);
+    if(w>0&&b>0){setPomWork(w);setPomBreak(b);setPomPhase('work');setPomPhaseStart(Date.now());}
+    setEditingPom(false);
+  };
+
+  let pomRemaining=null,pomPhaseSecs=null;
+  if(pomOn&&pomPhaseStart){
+    pomPhaseSecs=(pomPhase==='work'?pomWork:pomBreak)*60;
+    if(!sessionState.paused){
+      pomRemaining=Math.max(0,pomPhaseSecs-Math.floor((Date.now()-pomPhaseStart)/1000));
+    } else {
+      pomRemaining=pomPhaseSecs;
+    }
+  }
+
+  const handleCommitClick=()=>{
+    if(!awaitRating){setAwaitRating(true);return;}
+    onCommit(rating,elapsed,sessionState.breakSecs||0);
+    setAwaitRating(false);setRating(null);setPomOn(false);setPomPhaseStart(null);
+  };
+
+  const handleLogSubmit=()=>{
+    const h=parseInt(logHours)||0;const m=parseInt(logMins)||0;
+    const secs=(h*3600)+(m*60);
+    const subj=logSubject||logCustom.trim();
+    if(!secs||!subj)return;
+    onLogManual&&onLogManual({subject:subj,secs,rating:logRating,note:logNote});
+    setLogSubject(null);setLogCustom('');setLogHours('');setLogMins('');setLogNote('');setLogRating(null);
+    setMode('timer');
+  };
+
+  const startTime=sessionState.active?new Date(sessionState.startedAt):null;
+  const startedStr=startTime?`${String(startTime.getHours()).padStart(2,'0')}:${String(startTime.getMinutes()).padStart(2,'0')}`:'—';
+  const progressPct=Math.min(100,Math.round((elapsed/(2*3600))*100));
+  const PRESETS=typeof PRESET_SUBJECTS!=='undefined'?PRESET_SUBJECTS:['math','cs','history','physics'];
+  const inpStyle={background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'8px 10px',outline:'none',width:'100%',boxSizing:'border-box'};
+
+  if(!sessionState.active){
+    /* ── MODE TOGGLE ── */
+    const ModeBtn=({id,label})=>(
+      <button onClick={()=>setMode(id)} style={{flex:1,padding:'8px 0',background:mode===id?'var(--v1-bg-elev-2)':'transparent',border:'none',borderBottom:mode===id?'1px solid var(--v1-accent)':'1px solid var(--v1-rule)',color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',cursor:'pointer'}}>{label}</button>
+    );
+    return(
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flex:1,padding:'48px 40px',gap:24}}>
+        <div style={{width:'100%',maxWidth:480}}>
+          {/* mode tabs */}
+          <div style={{display:'flex',marginBottom:24}}>
+            <ModeBtn id="timer" label="⏱ start timer"/>
+            <ModeBtn id="log" label="✎ log manually"/>
+          </div>
+
+          {mode==='timer'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {PRESETS.map(s=>{
+                  const subj=D.subjects.find(x=>x.name===s);
+                  const color=subj?subj.color:'var(--v1-accent)';
+                  const picked=timerPicked===s;
+                  return(
+                    <button key={s} onClick={()=>setTimerPicked(s)} style={{display:'flex',alignItems:'center',gap:10,padding:'14px 18px',background:picked?'rgba(79,123,255,0.10)':'var(--v1-bg-elev)',border:`1px solid ${picked?color:'var(--v1-rule-strong)'}`,color:picked?'var(--v1-fg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:13,cursor:'pointer',letterSpacing:'0.04em',textAlign:'left',transition:'border-color 80ms'}}>
+                      <span style={{width:8,height:8,background:color,flexShrink:0}}/>{s}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{borderTop:'1px solid var(--v1-rule)',paddingTop:12}}>
+                <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>or type custom subject</div>
+                <Input value={timerCustom} onChange={v=>{setTimerCustom(v);setTimerPicked(null);}} placeholder="e.g. chemistry, language..."
+                  onKeyDown={e=>{if(e.key==='Enter'&&timerCustom.trim()&&onStart)onStart(timerCustom.trim());}}/>
+              </div>
+              <button
+                disabled={!timerPicked&&!timerCustom.trim()}
+                onClick={()=>onStart&&onStart(timerPicked||timerCustom.trim())}
+                style={{...Btn.md,width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:(timerPicked||timerCustom.trim())?'var(--v1-accent)':'transparent',color:(timerPicked||timerCustom.trim())?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:(timerPicked||timerCustom.trim())?'var(--v1-accent)':'var(--v1-rule)',opacity:(timerPicked||timerCustom.trim())?1:0.5}}>
+                ▸ begin session{(timerPicked||timerCustom.trim())?` · ${timerPicked||timerCustom.trim()}`:''}
+              </button>
+            </div>
+          )}
+
+          {mode==='log'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>subject</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                {PRESETS.map(s=>{
+                  const subj=D.subjects.find(x=>x.name===s);
+                  const color=subj?subj.color:'var(--v1-accent)';
+                  const picked=logSubject===s;
+                  return(
+                    <button key={s} onClick={()=>{setLogSubject(s);setLogCustom('');}} style={{display:'flex',alignItems:'center',gap:10,padding:'12px 16px',background:picked?'rgba(79,123,255,0.10)':'var(--v1-bg-elev)',border:`1px solid ${picked?color:'var(--v1-rule-strong)'}`,color:picked?'var(--v1-fg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:13,cursor:'pointer',letterSpacing:'0.04em',textAlign:'left',transition:'border-color 80ms'}}>
+                      <span style={{width:8,height:8,background:color,flexShrink:0}}/>{s}
+                    </button>
+                  );
+                })}
+              </div>
+              <Input value={logCustom} onChange={v=>{setLogCustom(v);setLogSubject(null);}} placeholder="or type custom subject..."/>
+              <div style={{borderTop:'1px solid var(--v1-rule)',paddingTop:12}}>
+                <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>time studied</div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <input value={logHours} onChange={e=>setLogHours(e.target.value.replace(/\D/,''))} placeholder="0" style={{...inpStyle,width:60,textAlign:'center'}}/>
+                  <span style={{color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:12}}>h</span>
+                  <input value={logMins} onChange={e=>setLogMins(e.target.value.replace(/\D/,''))} placeholder="0" style={{...inpStyle,width:60,textAlign:'center'}}/>
+                  <span style={{color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:12}}>m</span>
+                  <span style={{marginLeft:8,display:'flex',gap:4}}>
+                    {[[0,25],[0,45],[1,0],[1,30],[2,0]].map(([h,m])=>(
+                      <button key={`${h}${m}`} onClick={()=>{setLogHours(String(h));setLogMins(String(m).padStart(2,'0'));}} style={{...Btn.sm,fontSize:9,padding:'2px 6px'}}>{h?`${h}h`:`${m}m`}{h&&m?`${m}`:''}
+                      </button>
+                    ))}
+                  </span>
+                </div>
+              </div>
+              <Input value={logNote} onChange={setLogNote} placeholder="note (optional)"/>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',flexShrink:0}}>rating</span>
+                {[1,2,3,4,5].map(n=>(
+                  <button key={n} onClick={()=>setLogRating(r=>r===n?null:n)} style={{width:32,height:32,background:logRating&&logRating>=n?'var(--v1-accent)':'var(--v1-bg)',border:`1px solid ${logRating&&logRating>=n?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:logRating&&logRating>=n?'var(--v1-bg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    {logRating&&logRating>=n?'◆':'◇'}
+                  </button>
+                ))}
+                <span style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginLeft:4}}>{logRating?`${logRating}/5`:'optional'}</span>
+              </div>
+              <button
+                disabled={!(logSubject||logCustom.trim())||!(parseInt(logHours)||parseInt(logMins))}
+                onClick={handleLogSubmit}
+                style={{...Btn.md,width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:(logSubject||logCustom.trim())&&(parseInt(logHours)||parseInt(logMins))?'var(--v1-accent)':'transparent',color:(logSubject||logCustom.trim())&&(parseInt(logHours)||parseInt(logMins))?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:(logSubject||logCustom.trim())&&(parseInt(logHours)||parseInt(logMins))?'var(--v1-accent)':'var(--v1-rule)',opacity:(logSubject||logCustom.trim())&&(parseInt(logHours)||parseInt(logMins))?1:0.5}}>
+                ✓ log session
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{padding:'48px 40px',display:'flex',flexDirection:'column',alignItems:'center',gap:24}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,fontSize:11,letterSpacing:'0.2em',color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-accent)',fontFamily:'var(--v1-mono)'}}>
+        <span style={{width:7,height:7,background:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-accent)',borderRadius:'50%',boxShadow:sessionState.paused?'none':'0 0 14px var(--v1-accent)'}} className={sessionState.paused?'':'v1-pulse'}/>
+        {sessionState.paused?'PAUSED':'SESSION ACTIVE'} — {sessionState.subject}
+      </div>
+      <div style={{fontSize:160,lineHeight:0.88,letterSpacing:'-0.06em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)',display:'flex',alignItems:'baseline'}}>
+        <span style={{fontFamily:'var(--v1-mono)',fontSize:160,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.04em'}}>{fmtClock(elapsed)}</span>
+        {!sessionState.paused&&<Cursor size="0.45em" color="var(--v1-accent)"/>}
+      </div>
+      {(()=>{
+        const curBreakOngoing=sessionState.paused&&sessionState.pausedAt?Math.floor((Date.now()-sessionState.pausedAt)/1000):0;
+        const totalBreak=(sessionState.breakSecs||0)+curBreakOngoing;
+        const effPct=totalBreak>0?Math.round(elapsed/(elapsed+totalBreak)*100):null;
+        const cells=[
+          ['started',startedStr],
+          ['subject',sessionState.subject],
+          ['break',totalBreak>0?fmtClock(totalBreak):'—'],
+          ['efficiency',effPct!=null?`${effPct}%`:'—'],
+        ];
+        return(
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0,width:640,border:'1px solid var(--v1-rule)'}}>
+            {cells.map(([k,v],i)=>(
+              <div key={k} style={{padding:'12px 16px',borderRight:i<3?'1px solid var(--v1-rule)':'none'}}>
+                <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</div>
+                <div style={{fontSize:18,color:k==='efficiency'&&effPct!=null?(effPct>=80?'var(--v1-up)':effPct>=60?'var(--v1-fg)':'var(--v1-down)'):'var(--v1-fg)',marginTop:4,fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+      {awaitRating&&(
+        <div style={{padding:'18px 24px',border:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',display:'flex',flexDirection:'column',alignItems:'center',gap:12,width:400}}>
+          <div style={{fontSize:10,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>rate this session (optional)</div>
+          <div style={{display:'flex',gap:10}}>
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} onClick={()=>setRating(n)} style={{width:40,height:40,background:rating===n?'var(--v1-accent)':'var(--v1-bg)',border:`1px solid ${rating===n?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:rating===n?'var(--v1-bg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:16,cursor:'pointer',letterSpacing:'0',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                {rating&&rating>=n?'◆':'◇'}
+              </button>
+            ))}
+          </div>
+          <div style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>{rating?`${rating}/5 selected`:'skip = no rating'} · click commit again to finalize</div>
+        </div>
+      )}
+      <div style={{display:'flex',gap:10}}>
+        <button onClick={onPause} style={Btn.md}>{sessionState.paused?'resume':'pause'}</button>
+        <button onClick={handleCommitClick} style={{...Btn.md,background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)'}}>{awaitRating?'commit (confirm) ✓':'commit ✓'}</button>
+        <button onClick={()=>{setAwaitRating(false);setRating(null);onDiscard();}} style={Btn.md}>discard</button>
+      </div>
+
+      {/* ── POMODORO STRIP ── */}
+      <div style={{width:640,border:'1px solid var(--v1-rule)'}}>
+        <div style={{display:'flex',alignItems:'center',padding:'8px 14px',gap:10,borderBottom:pomOn?'1px solid var(--v1-rule)':'none',background:'var(--v1-bg-elev)'}}>
+          <span style={{fontSize:9,letterSpacing:'0.2em',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',textTransform:'uppercase',flex:1}}>pomodoro</span>
+          {pomOn&&!editingPom&&(
+            <button onClick={()=>{setPomWorkDraft(String(pomWork));setPomBreakDraft(String(pomBreak));setEditingPom(true);}} style={{...Btn.sm,fontSize:9,padding:'2px 8px'}}>edit</button>
+          )}
+          {pomOn&&editingPom&&(
+            <button onClick={applyPomSettings} style={{...Btn.sm,fontSize:9,padding:'2px 8px',background:'var(--v1-accent)',color:'var(--v1-bg)',borderColor:'var(--v1-accent)'}}>apply</button>
+          )}
+          <button onClick={togglePom} style={{...Btn.sm,fontSize:9,padding:'2px 10px',background:pomOn?'rgba(79,123,255,0.15)':'transparent',borderColor:pomOn?'var(--v1-accent)':'var(--v1-rule-strong)',color:pomOn?'var(--v1-accent)':'var(--v1-fg-2)'}}>{pomOn?'● on':'○ off'}</button>
+        </div>
+        {pomOn&&(
+          <div style={{padding:'12px 14px'}}>
+            {editingPom?(
+              <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.12em',textTransform:'uppercase'}}>work</span>
+                <input value={pomWorkDraft} onChange={e=>setPomWorkDraft(e.target.value.replace(/\D/,''))} style={{width:48,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'4px 6px',textAlign:'center',outline:'none'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>min</span>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.12em',textTransform:'uppercase',marginLeft:8}}>break</span>
+                <input value={pomBreakDraft} onChange={e=>setPomBreakDraft(e.target.value.replace(/\D/,''))} style={{width:48,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'4px 6px',textAlign:'center',outline:'none'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>min</span>
+                <div style={{display:'flex',gap:4,marginLeft:8}}>
+                  {[[25,5],[50,10],[90,15]].map(([w,b])=>(
+                    <button key={w} onClick={()=>{setPomWorkDraft(String(w));setPomBreakDraft(String(b));}} style={{...Btn.sm,fontSize:9,padding:'2px 7px',background:pomWorkDraft===String(w)&&pomBreakDraft===String(b)?'rgba(79,123,255,0.15)':'transparent',borderColor:pomWorkDraft===String(w)&&pomBreakDraft===String(b)?'var(--v1-accent)':'var(--v1-rule-strong)',color:pomWorkDraft===String(w)&&pomBreakDraft===String(b)?'var(--v1-accent)':'var(--v1-fg-2)'}}>{w}/{b}</button>
+                  ))}
+                </div>
+              </div>
+            ):(
+              <div style={{display:'flex',alignItems:'center',gap:14}}>
+                <span style={{fontSize:9,fontFamily:'var(--v1-mono)',letterSpacing:'0.18em',textTransform:'uppercase',color:pomPhase==='work'?'var(--v1-accent)':'#22C55E',width:36}}>{pomPhase}</span>
+                <span style={{fontSize:24,fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',minWidth:64}}>{pomRemaining!=null?fmtClock(pomRemaining):'—'}</span>
+                <div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative',overflow:'hidden'}}>
+                  {pomRemaining!=null&&pomPhaseSecs&&(
+                    <div style={{position:'absolute',inset:0,width:`${((pomPhaseSecs-pomRemaining)/pomPhaseSecs)*100}%`,background:pomPhase==='work'?'var(--v1-accent)':'#22C55E',transition:'width 1s linear'}}/>
+                  )}
+                </div>
+                <span style={{fontSize:9,fontFamily:'var(--v1-mono)',color:'var(--v1-fg-muted)',flexShrink:0}}>{pomWork}m · {pomBreak}m break</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+/* ── LOG ── */
+function Log({sessions,filterSubjects,filterMinProd}){
+  const all=sessions||D.sessions;
+  const list=all.filter(s=>{
+    if(filterSubjects&&filterSubjects.length>0&&!filterSubjects.includes(s.subject))return false;
+    if(filterMinProd&&filterMinProd>0&&(s.productivity==null||s.productivity<filterMinProd))return false;
+    return true;
+  });
+  if(list.length===0&&sessions.length===0){
+    return(
+      <Block label="sessions.log" meta="0 entries">
+        <EmptyState icon="◇" title="no sessions logged yet"
+          hint="complete a timer session or log time manually in the session tab"
+          action={null}
+        />
+      </Block>
+    );
+  }
+  const hasEff=list.some(s=>s.efficiency!=null);
+  return(
+    <Block label="sessions.log" meta={`${list.length}${all.length!==list.length?` / ${all.length}`:''} entries`}>
+      <Tbl cols={['','date','time','subject','dur','prod',...(hasEff?['eff','break']:[]),'note']} widths={['4px','64px','52px','100px','72px','40px',...(hasEff?['44px','68px']:[]),'1fr']}>
+        {list.map((s,i)=>(
+          <Row key={i}>
+            <span style={{width:4,height:18,background:s.color,display:'block'}}/>
+            <Cell mono>{s.day}</Cell>
+            <Cell mono dim>{s.time||'—'}</Cell>
+            <Cell>{s.subject}</Cell>
+            <Cell mono right>{s.duration}</Cell>
+            <Cell mono right tone={s.productivity!=null&&s.productivity>=4?'up':'flat'}>{s.productivity!=null?s.productivity.toFixed(1):'—'}</Cell>
+            {hasEff&&<Cell mono right tone={s.efficiency!=null?(s.efficiency>=80?'up':s.efficiency>=60?'flat':'down'):'flat'}>{s.efficiency!=null?`${s.efficiency}%`:'—'}</Cell>}
+            {hasEff&&<Cell mono dim>{s.breakSecs>0?fmtClock(s.breakSecs):'—'}</Cell>}
+            <Cell dim sm>{s.note||'—'}</Cell>
+          </Row>
+        ))}
+      </Tbl>
+    </Block>
+  );
+}
+
+/* ── CALENDAR ── */
+function DayModal({sel,today,evtsByDay,todosByDay,ts,setTs,extras,setExtras,onClose,firstDow:firstDowProp,monthLabel}){
+  const[newTitle,setNewTitle]=useState('');
+  const[newPrio,setNewPrio]=useState('med');
+  const[newSubj,setNewSubj]=useState(null);
+  const allTodos=[...D.todos,...extras];
+  const selEvts=(evtsByDay[sel]||[]).slice().sort((a,b)=>a.time.localeCompare(b.time));
+  const todosByDayLocal=useMemo(()=>{const m={};allTodos.forEach(t=>{(m[t.day]=m[t.day]||[]).push(t);});return m;},[allTodos]);
+  const selTodos=todosByDayLocal[sel]||[];
+  const selDone=selTodos.filter(t=>ts[t.id]??t.done).length;
+  const firstDow=firstDowProp!=null?firstDowProp:D.today.firstDow;
+  const dow=(firstDow+sel-1)%7;
+  const DOWL=['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+
+  useEffect(()=>{
+    const handler=e=>{if(e.key==='Escape')onClose();};
+    window.addEventListener('keydown',handler);
+    return()=>window.removeEventListener('keydown',handler);
+  },[onClose]);
+
+  const addTodo=()=>{
+    const title=newTitle.trim();if(!title)return;
+    const id=`usr_${Date.now()}`;
+    const subj=newSubj?D.subjects.find(s=>s.name===newSubj):null;
+    setExtras(a=>[...a,{id,day:sel,title,subject:subj?.name||null,color:subj?.color||'#5C6776',priority:newPrio,done:false}]);
+    setNewTitle('');
+  };
+
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:200,background:'rgba(5,6,8,0.8)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',padding:32}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:600,maxHeight:'80vh',background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',display:'flex',flexDirection:'column',boxShadow:'0 32px 80px rgba(0,0,0,0.7)',overflow:'hidden'}}>
+        {/* Modal header */}
+        <div style={{display:'flex',alignItems:'center',gap:14,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',flexShrink:0}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
+          <div>
+            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{DOWL[dow]} · {monthLabel||D.today.month}</div>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:32,lineHeight:1,letterSpacing:'-0.04em',color:sel===today?'var(--v1-accent)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums'}}>{String(sel).padStart(2,'0')}</div>
+          </div>
+          <span style={{flex:1}}/>
+          <div style={{display:'flex',gap:8}}>
+            <MiniBlock k="events" v={selEvts.length}/>
+            <MiniBlock k="todos" v={`${selDone}/${selTodos.length}`} tone={selTodos.length&&selDone===selTodos.length?'up':'flat'}/>
+          </div>
+          <button onClick={onClose} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11,padding:'4px 10px',letterSpacing:'0.08em'}}>✕ esc</button>
+        </div>
+        {/* Scrollable body */}
+        <div style={{overflowY:'auto',flex:1}}>
+          {/* Events */}
+          <div style={{padding:'14px 18px',borderBottom:'1px solid var(--v1-rule)'}}>
+            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,display:'flex',alignItems:'center',gap:8,fontFamily:'var(--v1-mono)'}}>
+              <span style={{color:'var(--v1-accent)'}}>▸</span>events<span style={{flex:1}}/>{selEvts.length===0&&<span>none scheduled</span>}
+            </div>
+            {selEvts.length>0&&<div style={{border:'1px solid var(--v1-rule)'}}>
+              {selEvts.map((e,i)=><div key={i} style={{display:'grid',gridTemplateColumns:'4px 68px 1fr auto',alignItems:'center',gap:10,padding:'9px 12px',borderBottom:i<selEvts.length-1?'1px solid var(--v1-rule)':'none'}}>
+                <span style={{width:4,height:24,background:e.color}}/>
+                <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums',lineHeight:1.4}}>{e.time}<br/><span style={{color:'var(--v1-fg-muted)'}}>{e.endTime}</span></span>
+                <div><div style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)'}}>{e.title}{e.flagged&&<span style={{color:'var(--v1-down)',marginLeft:8,fontSize:11}}>! exam</span>}</div><div style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{e.subject||'no subject'}</div></div>
+                <button style={{...Btn.sm,padding:'3px 8px',fontSize:10}}>edit</button>
+              </div>)}
+            </div>}
+          </div>
+          {/* Todos */}
+          <div style={{padding:'14px 18px'}}>
+            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,display:'flex',alignItems:'center',gap:8,fontFamily:'var(--v1-mono)'}}>
+              <span style={{color:'var(--v1-accent)'}}>▸</span>todos<span style={{flex:1}}/>{selTodos.length>0&&<span style={{color:'var(--v1-fg-3)'}}>{selDone}/{selTodos.length}</span>}{selTodos.length===0&&<span>none yet</span>}
+            </div>
+            {selTodos.length>0&&<div style={{border:'1px solid var(--v1-rule)',marginBottom:10}}>
+              {selTodos.map((t,i)=>{const isDone=ts[t.id]??t.done;return(
+                <div key={t.id} style={{display:'grid',gridTemplateColumns:'4px 16px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 12px',borderBottom:i<selTodos.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer',opacity:isDone?0.55:1,transition:'opacity 120ms'}}
+                  onClick={()=>setTs(s=>({...s,[t.id]:!(s[t.id]??t.done)}))}
+                  onMouseEnter={e=>!isDone&&(e.currentTarget.style.background='rgba(79,123,255,0.04)')}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{width:4,height:16,background:t.color}}/>
+                  <span style={{width:14,height:14,border:`1px solid ${isDone?'var(--v1-up)':'var(--v1-rule-strong)'}`,background:isDone?'var(--v1-up)':'transparent',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--v1-bg)',fontSize:10,fontWeight:700}}>{isDone?'✓':''}</span>
+                  <span style={{fontFamily:'var(--v1-sans)',fontSize:12,color:'var(--v1-fg)',textDecoration:isDone?'line-through':'none'}}>{t.title}</span>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,padding:'2px 6px',color:t.priority==='high'?'var(--v1-down)':t.priority==='med'?'#F2C14E':'var(--v1-fg-muted)',border:'1px solid currentColor',letterSpacing:'0.1em',textTransform:'uppercase'}}>{t.priority||'low'}</span>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',minWidth:52,textAlign:'right'}}>{t.subject||'—'}</span>
+                </div>
+              );})}
+            </div>}
+            <div style={{display:'grid',gridTemplateColumns:'1fr auto auto auto',gap:8,padding:8,border:'1px dashed var(--v1-rule-strong)',background:'var(--v1-bg-elev-2)'}}>
+              <Input value={newTitle} onChange={setNewTitle} placeholder="+ new todo for this day" onKeyDown={e=>{if(e.key==='Enter')addTodo();}}/>
+              <div style={{display:'inline-flex',border:'1px solid var(--v1-rule)'}}>
+                {['low','med','high'].map(p=>{const a=newPrio===p;return<button key={p} onClick={()=>setNewPrio(p)} style={{fontFamily:'var(--v1-mono)',fontSize:9,background:a?'var(--v1-bg-hover)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderRight:'1px solid var(--v1-rule)',padding:'0 8px',cursor:'pointer',letterSpacing:'0.1em',textTransform:'uppercase'}}>{p}</button>;})}
+              </div>
+              <select value={newSubj||''} onChange={e=>setNewSubj(e.target.value||null)} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:'var(--v1-bg)',color:'var(--v1-fg-2)',border:'1px solid var(--v1-rule-strong)',padding:'0 8px',cursor:'pointer',outline:'none'}}>
+                <option value="">no subject</option>
+                {D.subjects.map(s=><option key={s.name} value={s.name}>{s.name}</option>)}
+              </select>
+              <button onClick={addTodo} disabled={!newTitle.trim()} style={{...Btn.sm,background:newTitle.trim()?'var(--v1-accent)':'transparent',color:newTitle.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:newTitle.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:newTitle.trim()?1:0.5}}>add ↵</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Calendar(){
+  const TODAY_MONTH={year:_now.getFullYear(),month:_now.getMonth()};
+  const today=_now.getDate();
+  const[sel,setSel]=useState(null);
+  const[ts,setTs]=useState(()=>{const m={};D.todos.forEach(t=>{m[t.id]=t.done;});return m;});
+  const[extras,setExtras]=useState([]);
+  const[calMonth,setCalMonth]=useState(TODAY_MONTH);
+
+  const allTodos=[...D.todos,...extras];
+  const evtsByDay=useMemo(()=>{const m={};D.events.forEach(e=>{(m[e.day]=m[e.day]||[]).push(e);});return m;},[]);
+  const todosByDay=useMemo(()=>{const m={};allTodos.forEach(t=>{(m[t.day]=m[t.day]||[]).push(t);});return m;},[allTodos]);
+
+  // Compute dynamic month info from calMonth state
+  const daysInMonth=new Date(calMonth.year,calMonth.month+1,0).getDate();
+  // JS Date: 0=Sun,1=Mon,...6=Sat; we want 0=Mon
+  const rawDow=new Date(calMonth.year,calMonth.month,1).getDay();
+  const firstDow=(rawDow+6)%7; // convert to Mon=0
+  const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthName=`${MONTH_NAMES[calMonth.month]} ${calMonth.year}`;
+  const isCurrentMonth=calMonth.year===TODAY_MONTH.year&&calMonth.month===TODAY_MONTH.month;
+
+  const cells=[];
+  for(let i=0;i<firstDow;i++)cells.push(null);
+  for(let d=1;d<=daysInMonth;d++)cells.push(d);
+  while(cells.length%7!==0)cells.push(null);
+
+  const DOWS=['mon','tue','wed','thu','fri','sat','sun'];
+
+  // Week summary — compute current Mon–Sun dynamically
+  const todayDow=(_now.getDay()+6)%7; // 0=Mon
+  const wkMonDate=_now.getDate()-todayDow;
+  const wkDays=Array.from({length:7},(_,i)=>wkMonDate+i).filter(d=>d>=1&&d<=daysInMonth);
+  const wkEvts=wkDays.flatMap(d=>evtsByDay[d]||[]);
+  const wkTodos=wkDays.flatMap(d=>todosByDay[d]||[]);
+  const wkDone=wkTodos.filter(t=>ts[t.id]??t.done).length;
+  const wkHigh=wkTodos.filter(t=>t.priority==='high'&&!(ts[t.id]??t.done)).length;
+  const wkMonStr=`mon ${Math.max(1,wkMonDate)}`;
+  const wkSunStr=`sun ${Math.min(daysInMonth,wkMonDate+6)}`;
+  const wkMeta=`this week · ${wkMonStr} — ${wkSunStr} ${_now.toLocaleDateString('en-GB',{month:'short'}).toLowerCase()}`;
+
+  const prevMonth=()=>setCalMonth(cm=>{const m=cm.month-1;return m<0?{year:cm.year-1,month:11}:{year:cm.year,month:m};});
+  const nextMonth=()=>setCalMonth(cm=>{const m=cm.month+1;return m>11?{year:cm.year+1,month:0}:{year:cm.year,month:m};});
+
+  // events and todos only show for current month (May) — others show empty
+  const activeEvtsByDay=isCurrentMonth?evtsByDay:{};
+  const activeTodosByDay=isCurrentMonth?todosByDay:{};
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+      {/* Week summary */}
+      <div style={{flexShrink:0}}>
+        <Block label="week.summary" meta={wkMeta}>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
+            <KPI k="events" v={wkEvts.length} sub="this week" tone="flat"/>
+            <KPI k="todos_open" v={wkTodos.length-wkDone} sub={`${wkDone}/${wkTodos.length} done`}/>
+            <KPI k="high_priority" v={wkHigh} sub="due this week" tone={wkHigh>0?'down':'up'}/>
+            <KPI k="flagged" v={wkEvts.filter(e=>e.flagged).length} sub="exams / deadlines" tone={wkEvts.filter(e=>e.flagged).length>0?'down':'flat'}/>
+          </div>
+        </Block>
+      </div>
+
+      {/* Full-width month grid */}
+      <div style={{flex:1,minHeight:0,overflowY:'auto'}}>
+        <header style={{display:'flex',alignItems:'center',gap:12,padding:'10px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',position:'sticky',top:0,zIndex:10}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
+          <span style={{color:'var(--v1-fg-2)'}}>{monthName.toLowerCase()}</span>
+          <span style={{flex:1}}/>
+          <button onClick={prevMonth} style={Btn.sm}>‹</button>
+          <button onClick={()=>{setCalMonth(TODAY_MONTH);setSel(today);}} style={{...Btn.sm,borderColor:'var(--v1-accent)',color:'var(--v1-accent)'}}>today</button>
+          <button onClick={nextMonth} style={Btn.sm}>›</button>
+        </header>
+        {/* Single unified grid: DOW labels + day cells as direct children → perfect column alignment */}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)'}}>
+          {DOWS.map((d,i)=>(
+            <div key={`h${i}`} style={{padding:'6px 0',fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',borderRight:i<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontFamily:'var(--v1-mono)',textAlign:'center',position:'sticky',top:41,zIndex:9}}>
+              {d}
+            </div>
+          ))}
+          {cells.map((d,ci)=>{
+            const col=ci%7;
+            if(d===null)return(
+              <div key={`e${ci}`} style={{height:90,borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',opacity:0.35}}/>
+            );
+            const evts=activeEvtsByDay[d]||[],todos=activeTodosByDay[d]||[];
+            const open=todos.filter(t=>!(ts[t.id]??t.done)).length;
+            const done=todos.filter(t=>(ts[t.id]??t.done)).length;
+            const isTdy=d===today,isSel=sel===d,hasFlag=evts.some(e=>e.flagged);
+            return(
+              <button key={`d${ci}`} onClick={()=>setSel(d)} style={{height:90,background:isSel?'rgba(79,123,255,0.10)':isTdy?'rgba(79,123,255,0.04)':'transparent',border:'none',borderRight:col<6?'1px solid var(--v1-rule)':'none',borderBottom:'1px solid var(--v1-rule)',borderTop:isTdy?'2px solid var(--v1-accent)':'2px solid transparent',padding:'6px 8px',cursor:'pointer',fontFamily:'var(--v1-mono)',textAlign:'left',display:'flex',flexDirection:'column',gap:4,color:'var(--v1-fg)',position:'relative',transition:'background 80ms'}}
+                onMouseEnter={e=>{if(!isSel&&!isTdy)e.currentTarget.style.background='rgba(79,123,255,0.05)';}}
+                onMouseLeave={e=>{if(!isSel)e.currentTarget.style.background=isTdy?'rgba(79,123,255,0.04)':'transparent';}}>
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                  <span style={{fontSize:12,fontVariantNumeric:'tabular-nums',color:isTdy?'var(--v1-accent)':isSel?'var(--v1-fg)':'var(--v1-fg-2)',fontWeight:isTdy?700:400}}>{String(d).padStart(2,'0')}</span>
+                  {isTdy&&<span style={{fontSize:7,letterSpacing:'0.14em',color:'var(--v1-accent)',fontWeight:600}}>TODAY</span>}
+                  {hasFlag&&<span style={{marginLeft:'auto',color:'var(--v1-down)',fontSize:9}}>!</span>}
+                </div>
+                {evts.length>0&&(
+                  <div style={{display:'flex',flexWrap:'wrap',gap:3}}>
+                    {evts.slice(0,5).map((e,ii)=><span key={ii} style={{width:6,height:6,background:e.color,flexShrink:0,borderRadius:1}}/>)}
+                    {evts.length>5&&<span style={{fontSize:8,color:'var(--v1-fg-muted)'}}>+{evts.length-5}</span>}
+                  </div>
+                )}
+                {todos.length>0&&(
+                  <div style={{marginTop:'auto',fontSize:8,color:open>0?'var(--v1-fg-muted)':'var(--v1-up)',fontVariantNumeric:'tabular-nums'}}>
+                    {done}/{todos.length} {open===0?'✓':'todo'}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Day detail popup */}
+      {sel!==null&&<DayModal sel={sel} today={isCurrentMonth?today:-1} evtsByDay={activeEvtsByDay} todosByDay={activeTodosByDay} ts={ts} setTs={setTs} extras={extras} setExtras={setExtras} onClose={()=>setSel(null)} firstDow={firstDow} monthLabel={monthName.toLowerCase()}/>}
+    </div>
+  );
+}
+
+/* ── RANK ── */
+function Leader(){
+  const[scope,setScope]=useState('7d');
+  if(D.leaderboard.length<=1){
+    return(
+      <Block label="rank.leaderboard" meta="ranked by hours">
+        <EmptyState icon="🏆" title="leaderboard is empty"
+          hint="invite study partners to compete — rankings appear once you have friends"
+        />
+      </Block>
+    );
+  }
+  const users=D.leaderboard.map((u,i)=>({...u,i,series:userSeries(i,scope)}));
+  const ranked=users.map(u=>({...u,total:sumH(u.series)})).sort((a,b)=>b.total-a.total);
+  const me=ranked.find(u=>u.isYou),myRank=ranked.findIndex(u=>u.isYou)+1;
+  const top=ranked[0],second=ranked[1];
+  const lead=myRank===1?me.total-second.total:me.total-top.total;
+  const chartSeries=ranked.slice(0,5).map(u=>({name:u.isYou?'you':u.name,color:u.isYou?'var(--v1-accent)':u.color,values:u.series,dim:!u.isYou&&u.i>0}));
+  const sc=SCOPES.find(s=>s.id===scope);
+  return(
+    <div>
+      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta="ranked by hours studied" action={<ScopePicker scope={scope} onScope={setScope}/>}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
+          <KPI k="your_rank" v={`#${myRank}`} sub={`of ${ranked.length}`} tone={myRank===1?'up':'flat'}/>
+          <KPI k="hours" v={fmtHM(me.total)} sub={`${(me.total/sc.n).toFixed(2)}h / ${sc.unit}`}/>
+          <KPI k={myRank===1?'lead_vs_#2':'gap_vs_#1'} v={`${lead>=0?'+':'−'}${fmtHM(Math.abs(lead))}`} sub={myRank===1?`vs ${second.name}`:`vs ${top.name}`} tone={lead>=0?'up':'down'}/>
+          <KPI k="trend" v={(me.series[me.series.length-1]/Math.max(0.01,me.series[0])*100-100).toFixed(0)+'%'} sub="end vs start" tone={me.series[me.series.length-1]>=me.series[0]?'up':'down'}/>
+        </div>
+      </Block>
+      <Block label="rank.chart" meta={`top 5 · ${sc.unit} basis`}>
+        <BigChart series={chartSeries} scope={scope} height={260} fillFirst yLabel="h"/>
+      </Block>
+      <Block label="rank.full" meta={`${ranked.length} members`}>
+        <Tbl cols={['#','who','streak','subj','trend',`${sc.label} hrs`,'share','d_vs_#1']} widths={['32px','auto','60px','40px','110px','80px','120px','80px']}>
+          {ranked.map((u,i)=>{const share=u.total/top.total,delta=u.total-top.total;return(
+            <Row key={u.name} hi={u.isYou}>
+              <Cell mono dim>#{String(i+1).padStart(2,'0')}</Cell>
+              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:7,height:7,background:u.color,borderRadius:1}}/><span style={{color:u.isYou?'var(--v1-accent)':'var(--v1-fg)'}}>{u.isYou?'you':u.name}</span></span></Cell>
+              <Cell mono dim>{u.streak}d</Cell>
+              <Cell mono dim>{u.subjects}</Cell>
+              <Cell><Spark data={u.series} w={104} h={20} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
+              <Cell mono right>{fmtHM(u.total)}</Cell>
+              <Cell><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${share*100}%`,background:u.isYou?'var(--v1-accent)':u.color}}/></div><span style={{fontSize:10,color:'var(--v1-fg-muted)',width:30,textAlign:'right'}}>{Math.round(share*100)}%</span></div></Cell>
+              <Cell mono right dim tone={i===0?'flat':delta>=0?'up':'down'}>{i===0?'—':`${delta>=0?'+':'−'}${fmtHM(Math.abs(delta))}`}</Cell>
+            </Row>
+          );})}
+        </Tbl>
+      </Block>
+    </div>
+  );
+}
+
+/* ── HOURS / HEATMAP ── */
+function FocusGrid(){
+  const days=['mon','tue','wed','thu','fri','sat','sun'];
+  const hasData=D.heatmap.some(row=>row.some(v=>v>0));
+  if(!hasData) return(
+    <EmptyState icon="◰" title="no focus data yet"
+      hint="study sessions will build your hourly heatmap over time"
+    />
+  );
+  return(
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'40px repeat(24,1fr)',gap:1}}>
+        <div/>
+        {Array.from({length:24},(_,h)=><div key={h} style={{fontSize:9,color:'var(--v1-fg-muted)',textAlign:'center',fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums'}}>{h%3===0?String(h).padStart(2,'0'):''}</div>)}
+        {D.heatmap.map((row,d)=>(
+          <React.Fragment key={d}>
+            <div style={{fontSize:10,color:'var(--v1-fg-3)',display:'flex',alignItems:'center',fontFamily:'var(--v1-mono)'}}>{days[d]}</div>
+            {row.map((v,h)=><div key={h} title={`${days[d]} ${String(h).padStart(2,'0')}:00`} style={{height:24,background:v>0.05?`rgba(79,123,255,${v.toFixed(2)})`:'var(--v1-bg-elev-2)',cursor:'default'}}/>)}
+          </React.Fragment>
+        ))}
+      </div>
+      <div style={{marginTop:12,display:'flex',gap:5,alignItems:'center',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+        <span>less</span>{[0.1,0.3,0.6,1].map(v=><div key={v} style={{width:14,height:8,background:`rgba(79,123,255,${v})`}}/>)}<span>more</span>
+      </div>
+    </div>
+  );
+}
+
+function Heatmap({weeklyTarget,setWeeklyTarget}){
+  const[mode,setMode]=useState('focus');
+  const[editing,setEditing]=useState(false);
+  const[draft,setDraft]=useState(String(weeklyTarget));
+  const wkHours=0;
+  const pace=Math.round((wkHours/weeklyTarget)*100);
+  const paceColor=pace>=100?'var(--v1-up)':pace>=75?'var(--v1-fg-2)':'var(--v1-down)';
+  const commitTarget=()=>{const n=parseFloat(draft);if(!isNaN(n)&&n>0){setWeeklyTarget(Math.round(n));setEditing(false);}};
+  return(
+    <div>
+      <Block label="hours.summary" meta="last 30d">
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
+          <KPI k="best_hour"   v="—"   sub="no data yet"/>
+          <KPI k="best_day"    v="—"   sub="no data yet"/>
+          <KPI k="weakest"     v="—"   sub="no data yet"/>
+          <KPI k="active_days" v="0 / 30" sub="streak 0d"/>
+        </div>
+      </Block>
+      <Block label="weekly_target.pace" meta="set your weekly hour goal">
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0,border:'1px solid var(--v1-rule)'}}>
+          {/* Left: target setter */}
+          <div style={{padding:'18px 20px',borderRight:'1px solid var(--v1-rule)',display:'flex',flexDirection:'column',gap:10}}>
+            <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>weekly target</span>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <button onClick={()=>{const n=weeklyTarget-1;if(n>0){setWeeklyTarget(n);setDraft(String(n));}}} style={{...Btn.sm,padding:'4px 10px',fontSize:14,lineHeight:1}}>−</button>
+              {editing?(
+                <input value={draft} onChange={e=>setDraft(e.target.value)}
+                  onBlur={commitTarget}
+                  onKeyDown={e=>{if(e.key==='Enter')commitTarget();if(e.key==='Escape')setEditing(false);}}
+                  autoFocus
+                  style={{width:64,fontFamily:'var(--v1-mono)',fontSize:28,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.03em',background:'transparent',border:'none',borderBottom:'1px solid var(--v1-accent)',color:'var(--v1-fg)',outline:'none',textAlign:'center'}}/>
+              ):(
+                <span onClick={()=>{setDraft(String(weeklyTarget));setEditing(true);}} style={{fontSize:28,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.03em',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',cursor:'text',borderBottom:'1px solid var(--v1-rule-strong)',padding:'0 4px'}}>{weeklyTarget}<span style={{fontSize:14,color:'var(--v1-fg-muted)',marginLeft:3}}>h</span></span>
+              )}
+              <button onClick={()=>{const n=weeklyTarget+1;setWeeklyTarget(n);setDraft(String(n));}} style={{...Btn.sm,padding:'4px 10px',fontSize:14,lineHeight:1}}>+</button>
+            </div>
+            <span style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>click the number to type · ± buttons for ±1h</span>
+          </div>
+          {/* Right: pace display */}
+          <div style={{padding:'18px 20px',display:'flex',flexDirection:'column',gap:8}}>
+            <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>this week pace</span>
+            <div style={{display:'flex',alignItems:'baseline',gap:8}}>
+              <span style={{fontSize:44,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.04em',color:paceColor,fontFamily:'var(--v1-mono)',fontWeight:500}}>{pace}%</span>
+              <span style={{fontSize:12,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{wkHours.toFixed(1)}h / {weeklyTarget}h</span>
+            </div>
+            {/* Progress bar */}
+            <div style={{height:6,background:'var(--v1-bg-elev-2)',position:'relative',marginTop:4}}>
+              <div style={{position:'absolute',inset:0,width:`${Math.min(100,pace)}%`,background:paceColor,transition:'width 300ms'}}/>
+              {weeklyTarget>0&&<div style={{position:'absolute',left:'100%',top:-3,width:1,height:12,background:'var(--v1-fg-muted)',transform:'translateX(-1px)'}}/>}
+            </div>
+            <span style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>{pace>=100?'target reached ✓':pace>=75?`${(weeklyTarget-wkHours).toFixed(1)}h to go · on track`:`${(weeklyTarget-wkHours).toFixed(1)}h remaining · pick up pace`}</span>
+          </div>
+        </div>
+      </Block>
+      <Block label={mode==='focus'?'hourly_focus.grid':'daily_totals.grid'} meta={mode==='focus'?'focus quality · last 7 days':'hours studied · last 18 weeks'}
+        action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'focus',label:'FOCUS QUALITY',icon:'◰'},{id:'daily',label:'HOURS / DAY',icon:'▦'}]}/>}>
+        {mode==='focus'?<FocusGrid/>:<div style={{padding:'20px 0',color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)',fontSize:11}}>daily contribution grid · scroll right to see older weeks</div>}
+      </Block>
+      <Block label="best_windows" meta="top 3 hour-of-day · last 30d">
+        <EmptyState icon="◷" title="no peak hours identified yet" hint="complete more sessions to discover your best study windows"/>
+      </Block>
+    </div>
+  );
+}
+
+/* ── SUBJECTS ── */
+function SubjectsDonut({scoped,total}){
+  const SIZE=280,STROKE=38,R=(SIZE-STROKE)/2,C=2*Math.PI*R;
+  let acc=0;
+  const segs=scoped.map(s=>{const pct=s.total/total,seg={...s,pct,len:pct*C,offset:acc};acc+=pct;return seg;});
+  const[hov,setHov]=useState(null);
+  const focus=hov?segs.find(s=>s.name===hov):[...segs].sort((a,b)=>b.pct-a.pct)[0];
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'1fr auto 1fr',gap:24,alignItems:'center'}}>
+      <div style={{display:'flex',flexDirection:'column',gap:3}}>
+        <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',padding:'4px 8px 6px',borderBottom:'1px solid var(--v1-rule)',marginBottom:4,fontFamily:'var(--v1-mono)'}}>▸ allocation</div>
+        {[...segs].sort((a,b)=>b.pct-a.pct).map(s=>(
+          <div key={s.name} onMouseEnter={()=>setHov(s.name)} onMouseLeave={()=>setHov(null)} style={{display:'grid',gridTemplateColumns:'10px 1fr 72px 38px',alignItems:'center',gap:10,padding:'5px 8px',cursor:'pointer',background:hov===s.name?'rgba(79,123,255,0.06)':'transparent',borderLeft:hov===s.name?'2px solid var(--v1-accent)':'2px solid transparent',transition:'background 60ms'}}>
+            <span style={{width:9,height:9,background:s.color}}/>
+            <span style={{fontSize:12,color:'var(--v1-fg-2)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{Math.round(s.pct*100)}%</span>
+          </div>
+        ))}
+      </div>
+      <div style={{position:'relative',width:SIZE,height:SIZE}}>
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{transform:'rotate(-90deg)'}}>
+          <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke="var(--v1-bg-elev-2)" strokeWidth={STROKE}/>
+          {segs.map(s=><circle key={s.name} cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke={s.color} strokeWidth={STROKE} strokeDasharray={`${s.len} ${C-s.len}`} strokeDashoffset={-s.offset*C} onMouseEnter={()=>setHov(s.name)} onMouseLeave={()=>setHov(null)} style={{cursor:'pointer',transition:'opacity 80ms',opacity:hov&&hov!==s.name?0.4:1}}/>)}
+        </svg>
+        <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',pointerEvents:'none'}}>
+          <div style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.16em',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{hov||'total'}</div>
+          <div style={{fontSize:28,color:'var(--v1-fg)',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.03em',marginTop:4,fontFamily:'var(--v1-mono)'}}>{fmtHM(hov?(segs.find(s=>s.name===hov)?.total||0):total)}</div>
+          <div style={{fontSize:10,color:'var(--v1-fg-muted)',marginTop:2,fontFamily:'var(--v1-mono)'}}>{hov?`${Math.round((segs.find(s=>s.name===hov)?.pct||0)*100)}%`:`${scoped.length} subjects`}</div>
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',padding:'4px 0 6px',borderBottom:'1px solid var(--v1-rule)',marginBottom:10,fontFamily:'var(--v1-mono)'}}>▸ {hov?'hovered':'top subject'}</div>
+        {focus&&<div>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}><span style={{width:12,height:24,background:focus.color}}/><div><div style={{fontSize:16,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{focus.name}</div><div style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{Math.round(focus.pct*100)}% of total</div></div></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:12}}>
+            {[['hours',fmtHM(focus.total)],['sessions',focus.sessions||0],['prod',focus.productivity?(focus.productivity.toFixed(1)+'/5'):'—'],['last',focus.lastStudied||'—']].map(([k,v])=>(
+              <div key={k} style={{padding:'8px 10px',border:'1px solid var(--v1-rule)'}}>
+                <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</div>
+                <div style={{fontFamily:'var(--v1-mono)',fontSize:14,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',marginTop:2}}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>}
+      </div>
+    </div>
+  );
+}
+
+function Subjects(){
+  const[scope,setScope]=useState('7d');
+  const[mode,setMode]=useState('donut');
+  const[manageOpen,setManageOpen]=useState(false);
+  const[subjs,setSubjs]=useState(()=>D.subjects.map((s,i)=>({...s,color:SUBJ_COLORS[i]||s.color,_idx:i})));
+  const scoped=subjs.map((s,i)=>{const series=subjSeries(i,scope);return{...s,series,total:sumH(series)};});
+  const grand=scoped.reduce((a,s)=>a+s.total,0);
+  const sc=SCOPES.find(s=>s.id===scope);
+  const[name,setName]=useState('');const[col,setCol]=useState(SUBJ_COLORS[4]);
+  return(
+    <div>
+      {scoped.length===0?(
+        <Block label="subjects.summary" meta="no subjects yet" action={<button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ add subject</button>}>
+          <EmptyState icon="📚" title="no subjects tracked yet"
+            hint="add subjects you study, then log sessions to see your time breakdown"
+            action={<button onClick={()=>setManageOpen(true)} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>+ add your first subject</button>}
+          />
+        </Block>
+      ):(
+        <div>
+          <Block label="subjects.summary" meta={`${scoped.length} subjects · ${fmtHM(grand)} · ${scopeLabel(scope)}`}
+            action={<span style={{display:'inline-flex',gap:8,alignItems:'center'}}><ScopePicker scope={scope} onScope={setScope}/><button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ manage</button></span>}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
+              <KPI k="total" v={fmtHM(grand)} sub={`${sc.label} window`}/>
+              <KPI k="top_subject" v={[...scoped].sort((a,b)=>b.total-a.total)[0].name} sub={fmtHM([...scoped].sort((a,b)=>b.total-a.total)[0].total)} tone="up"/>
+              <KPI k="avg_per_subject" v={fmtHM(grand/Math.max(1,scoped.length))} sub={`${scoped.length} tracked`}/>
+              <KPI k="balance" v={`${Math.round([...scoped].sort((a,b)=>b.total-a.total)[0].total/grand*100)}%`} sub="top subject share"/>
+            </div>
+          </Block>
+          <Block label="subjects.viz" meta={`mode: ${mode}`}
+            action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'donut',label:'DONUT',icon:'◯'},{id:'bars',label:'BARS',icon:'▤'},{id:'area',label:'OVER TIME',icon:'▲'}]}/>}>
+            {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
+            {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
+            </div>}
+            {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
+          </Block>
+          <Block label="subjects.table" meta={`per-subject · ${scopeLabel(scope)}`}>
+            <Tbl cols={['','subject','last','sess','prod','trend',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','40px','40px','200px','90px','1fr']}>
+              {scoped.map(s=>{const pct=s.total/grand;return(
+                <Row key={s._idx??s.name}>
+                  <span style={{width:4,height:18,background:s.color,display:'block'}}/>
+                  <Cell>{s.name}</Cell><Cell mono dim sm>{s.lastStudied}</Cell><Cell mono right dim>{s.sessions}</Cell>
+                  <Cell mono right tone={s.productivity>=4?'up':'flat'}>{s.productivity?s.productivity.toFixed(1):'—'}</Cell>
+                  <Cell><Spark data={s.series} w={188} h={20} color={s.color} sw={1}/></Cell>
+                  <Cell mono right>{fmtHM(s.total)}</Cell>
+                  <Cell><div style={{display:'flex',alignItems:'center',gap:6}}><div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct*100}%`,background:s.color}}/></div><span style={{fontSize:10,color:'var(--v1-fg-muted)',fontVariantNumeric:'tabular-nums',width:30,textAlign:'right'}}>{Math.round(pct*100)}%</span></div></Cell>
+                </Row>
+              );})}
+            </Tbl>
+          </Block>
+        </div>
+      )}
+      {manageOpen&&<Modal title="manage_subjects" onClose={()=>setManageOpen(false)} width={520}>
+        <div style={{padding:18,borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:8,fontFamily:'var(--v1-mono)'}}>+ add new subject</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr auto auto',gap:8,alignItems:'center'}}>
+            <Input value={name} onChange={setName} placeholder="e.g. chemistry" autoFocus onKeyDown={e=>{if(e.key==='Enter'&&name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}}/>
+            <div style={{display:'flex',gap:3}}>{SUBJ_COLORS.map(c=><button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,background:c,border:col===c?'2px solid var(--v1-fg)':'1px solid var(--v1-rule)',padding:0,cursor:'pointer'}}/>)}</div>
+            <button disabled={!name.trim()} onClick={()=>{if(name.trim()){setSubjs(a=>[...a,{name:name.trim().toLowerCase(),color:col,sessions:0,productivity:0,lastStudied:'never',minsThisWeek:0,minsAll:0,_idx:Date.now()}]);setName('');}}} style={{...Btn.sm,background:name.trim()?'var(--v1-accent)':'transparent',color:name.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:name.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:name.trim()?1:0.5}}>add ↵</button>
+          </div>
+        </div>
+        <div style={{maxHeight:320,overflow:'auto'}}>
+          {subjs.map((s,i)=><div key={s._idx??s.name} style={{display:'grid',gridTemplateColumns:'4px auto 1fr auto',gap:12,alignItems:'center',padding:'10px 18px',borderTop:'1px solid var(--v1-rule)'}}>
+            <span style={{width:4,height:18,background:s.color}}/><span style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}>{s.name}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{s.sessions} sessions · {s.lastStudied}</span>
+            <button onClick={()=>setSubjs(a=>a.filter((_,j)=>j!==i))} style={{...Btn.sm,fontSize:10,padding:'3px 10px'}} onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}} onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>remove ✕</button>
+          </div>)}
+        </div>
+      </Modal>}
+    </div>
+  );
+}
+
+/* ── NETWORK ── */
+function Friend(){
+  const[scope,setScope]=useState('7d');
+  const others=D.leaderboard.filter(u=>!u.isYou);
+  if(others.length===0){
+    return(
+      <Block label="network.members" meta="1 member">
+        <EmptyState icon="🤝" title="no study partners yet"
+          hint="once friends join and connect, you'll see head-to-head comparisons and live activity here"
+        />
+      </Block>
+    );
+  }
+  const[frName,setFrName]=useState(others[0].name);
+  const[open,setOpen]=useState(false);
+  const friend=others.find(u=>u.name===frName)||others[0];
+  const frIdx=D.leaderboard.findIndex(u=>u.name===frName);
+  const meSeries=userSeries(0,scope),frSeries=userSeries(frIdx,scope);
+  const meTotal=sumH(meSeries),frTotal=sumH(frSeries);
+  const chartSeries=[
+    {name:'you',color:'var(--v1-accent)',values:meSeries,fill:true},
+    {name:friend.name,color:friend.color,values:frSeries,dim:true},
+  ];
+  return(
+    <div>
+      <Block label="network.compare" meta="head-to-head trend overlay" action={<ScopePicker scope={scope} onScope={setScope}/>}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)',marginBottom:18}}>
+          <KPI k="your_hours" v={fmtHM(meTotal)} sub={scopeLabel(scope)} tone="flat"/>
+          <KPI k={`${friend.name}_hours`} v={fmtHM(frTotal)} sub={scopeLabel(scope)}/>
+          <KPI k="lead" v={`${meTotal>=frTotal?'+':'−'}${fmtHM(Math.abs(meTotal-frTotal))}`} sub={`vs ${friend.name}`} tone={meTotal>=frTotal?'up':'down'}/>
+          <KPI k="comparing_vs" v={friend.name} sub={`streak ${friend.streak}d`}/>
+        </div>
+        <div style={{marginBottom:12,display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+          <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.16em',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>compare vs</span>
+          <div style={{position:'relative'}}>
+            <button onClick={()=>setOpen(p=>!p)} style={{...Btn.sm,display:'inline-flex',alignItems:'center',gap:8}}>
+              <span style={{width:8,height:8,background:friend.color}}/><span style={{color:'var(--v1-fg)'}}>{friend.name}</span><span style={{color:'var(--v1-fg-muted)'}}>▾</span>
+            </button>
+            {open&&<div style={{position:'absolute',top:'100%',left:0,marginTop:4,zIndex:30,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',minWidth:160,boxShadow:'0 12px 30px rgba(0,0,0,0.5)'}}>
+              {others.map(u=><button key={u.name} onClick={()=>{setFrName(u.name);setOpen(false);}} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'8px 12px',background:u.name===frName?'rgba(79,123,255,0.1)':'transparent',border:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',textAlign:'left'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.08)'} onMouseLeave={e=>e.currentTarget.style.background=u.name===frName?'rgba(79,123,255,0.1)':'transparent'}><span style={{width:7,height:7,background:u.color}}/>{u.name}</button>)}
+            </div>}
+          </div>
+        </div>
+        <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
+      </Block>
+      <Block label="network.members" meta={`${D.leaderboard.length} members`}>
+        <Tbl cols={['#','who','streak','wk hrs','trend']} widths={['28px','auto','60px','80px','120px']}>
+          {D.leaderboard.map((u,i)=>(
+            <Row key={u.name} hi={u.isYou}>
+              <Cell mono dim>#{i+1}</Cell>
+              <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:6,height:6,background:u.color}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}{u.online&&<span title="online" style={{width:7,height:7,background:'#22C55E',borderRadius:'50%',boxShadow:'0 0 5px #22C55E88',flexShrink:0}}/>}</span></Cell>
+              <Cell mono dim>{u.streak}d</Cell>
+              <Cell mono right>{u.weekTime.replace(' ','')}</Cell>
+              <Cell><Spark data={u.trend} w={114} h={18} color={u.isYou?'var(--v1-accent)':'var(--v1-fg-3)'} sw={1}/></Cell>
+            </Row>
+          ))}
+        </Tbl>
+      </Block>
+    </div>
+  );
+}
+
+/* ── SEARCH PANEL ── */
+function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMinProd,setFilterMinProd,onNav}){
+  const[query,setQuery]=useState('');
+  const[localSubjs,setLocalSubjs]=useState(filterSubjects||[]);
+  const[localProd,setLocalProd]=useState(filterMinProd||0);
+  const inputRef=useRef(null);
+  const allSubjs=[...new Set([...D.subjects.map(s=>s.name),...subjects.map(s=>s.subject)])].filter(Boolean);
+  const toggleSubj=s=>setLocalSubjs(a=>a.includes(s)?a.filter(x=>x!==s):[...a,s]);
+  const hasFilters=localSubjs.length>0||localProd>0;
+
+  // live search results across sessions
+  const q=query.trim().toLowerCase();
+  const results=q.length>0?subjects.filter(s=>
+    s.subject?.toLowerCase().includes(q)||
+    s.note?.toLowerCase().includes(q)||
+    s.day?.toLowerCase().includes(q)||
+    s.duration?.toLowerCase().includes(q)
+  ).slice(0,8):[];
+
+  useEffect(()=>{setTimeout(()=>inputRef.current?.focus(),30);},[]);
+  useEffect(()=>{
+    const h=e=>{if(e.key==='Escape')onClose();};
+    window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
+  },[]);
+
+  const applyAndGo=()=>{
+    setFilterSubjects(localSubjs);setFilterMinProd(localProd);
+    onNav&&onNav('log');onClose();
+  };
+  const clear=()=>{setQuery('');setLocalSubjs([]);setLocalProd(0);setFilterSubjects([]);setFilterMinProd(0);};
+
+  return(
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:80}}>
+      <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
+        {/* search input */}
+        <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10}}>
+          <span style={{fontSize:14,color:'var(--v1-fg-muted)'}}>⌕</span>
+          <input ref={inputRef} value={query} onChange={e=>setQuery(e.target.value)}
+            placeholder="search sessions, subjects, notes..."
+            style={{flex:1,background:'transparent',border:'none',outline:'none',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'14px 0',letterSpacing:'0.02em'}}/>
+          {(query||hasFilters)&&<button onClick={clear} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>clear</button>}
+          <button onClick={onClose} style={{...Btn.sm,fontSize:9,padding:'2px 6px',flexShrink:0}}>✕ esc</button>
+        </div>
+
+        {/* live results */}
+        {q.length>0&&(
+          <div style={{borderBottom:'1px solid var(--v1-rule)'}}>
+            {results.length===0
+              ? <div style={{padding:'12px 14px',fontSize:11,color:'var(--v1-fg-muted)'}}>no sessions match "{query}"</div>
+              : results.map((s,i)=>{
+                  const subj=D.subjects.find(x=>x.name===s.subject);
+                  return(
+                    <div key={i} onClick={()=>{setFilterSubjects(s.subject?[s.subject]:[]);setFilterMinProd(0);onNav&&onNav('log');onClose();}}
+                      style={{display:'grid',gridTemplateColumns:'4px 1fr auto auto',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<results.length-1?'1px solid var(--v1-rule)':'none',cursor:'pointer'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <span style={{width:4,height:16,background:subj?subj.color:'var(--v1-fg-muted)',display:'block'}}/>
+                      <div>
+                        <span style={{fontSize:12,color:'var(--v1-fg)'}}>{s.subject}</span>
+                        {s.note&&<span style={{fontSize:10,color:'var(--v1-fg-muted)',marginLeft:8}}>{s.note}</span>}
+                      </div>
+                      <span style={{fontSize:10,color:'var(--v1-fg-muted)'}}>{s.day}</span>
+                      <span style={{fontSize:10,color:'var(--v1-fg-2)',fontVariantNumeric:'tabular-nums'}}>{s.duration}</span>
+                    </div>
+                  );
+                })
+            }
+          </div>
+        )}
+
+        {/* narrow by subject */}
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>narrow by subject</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+            {allSubjs.map(s=>{
+              const subj=D.subjects.find(x=>x.name===s);
+              const color=subj?subj.color:'var(--v1-fg-muted)';
+              const on=localSubjs.includes(s);
+              return<button key={s} onClick={()=>toggleSubj(s)} style={{display:'inline-flex',alignItems:'center',gap:5,padding:'3px 9px',fontSize:10,fontFamily:'var(--v1-mono)',background:on?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${on?color:'var(--v1-rule-strong)'}`,color:on?'var(--v1-fg)':'var(--v1-fg-2)',cursor:'pointer',transition:'all 80ms'}}>
+                <span style={{width:5,height:5,background:color,flexShrink:0}}/>{s}
+              </button>;
+            })}
+          </div>
+        </div>
+
+        {/* narrow by productivity */}
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:7}}>min productivity</div>
+          <div style={{display:'flex',gap:5}}>
+            {[[0,'any'],[3,'≥ 3'],[4,'≥ 4'],[5,'5 only']].map(([v,label])=>(
+              <button key={v} onClick={()=>setLocalProd(v)} style={{flex:1,padding:'4px 0',fontSize:10,fontFamily:'var(--v1-mono)',background:localProd===v?'rgba(79,123,255,0.12)':'transparent',border:`1px solid ${localProd===v?'var(--v1-accent)':'var(--v1-rule-strong)'}`,color:localProd===v?'var(--v1-accent)':'var(--v1-fg-2)',cursor:'pointer'}}>{label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* apply */}
+        <div style={{padding:'8px 14px',display:'flex',justifyContent:'flex-end'}}>
+          <button onClick={applyAndGo} style={{...Btn.sm,background:hasFilters?'var(--v1-accent)':'transparent',color:hasFilters?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:hasFilters?'var(--v1-accent)':'var(--v1-rule)',padding:'4px 14px'}}>
+            {hasFilters?'apply → log':'view log →'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── AUTH SCREEN ── */
+function AuthScreen({onAuth}){
+  const[mode,setMode]=useState('signup'); // 'signin'|'signup' — signup shown first for new visitors
+  const[name,setName]=useState('');
+  const[email,setEmail]=useState('');
+  const[password,setPassword]=useState('');
+  const[confirm,setConfirm]=useState('');
+  const[error,setError]=useState('');
+  const[loading,setLoading]=useState(false);
+  const[gsiReady,setGsiReady]=useState(false);
+  const emailRef=useRef(null);
+  const gBtnRef=useRef(null);
+
+  /* initialise Google Identity Services when script loads */
+  useEffect(()=>{
+    const init=()=>{
+      if(!window.google||!window.google.accounts){return;}
+      if(GOOGLE_CLIENT_ID.startsWith('YOUR_')){setGsiReady(false);return;}
+      try{
+        window.google.accounts.id.initialize({
+          client_id:GOOGLE_CLIENT_ID,
+          callback:(response)=>{
+            const payload=decodeGoogleJwt(response.credential);
+            if(!payload){setError('google sign-in failed — could not decode token');return;}
+            const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
+            if(res.error){setError(res.error);return;}
+            onAuth(res.user);
+          },
+          auto_select:false,
+          cancel_on_tap_outside:true,
+        });
+        setGsiReady(true);
+      }catch(e){/* GSI not loaded yet */}
+    };
+    /* poll briefly in case script arrives after component mounts */
+    const t=setInterval(()=>{if(window.google?.accounts){init();clearInterval(t);}},300);
+    init();
+    return()=>clearInterval(t);
+  },[]);
+
+  /* render Google button into ref div whenever ready */
+  useEffect(()=>{
+    if(!gsiReady||!gBtnRef.current)return;
+    try{
+      window.google.accounts.id.renderButton(gBtnRef.current,{
+        type:'standard',theme:'outline',size:'large',width:352,
+        text:mode==='signup'?'signup_with':'signin_with',
+        shape:'square',logo_alignment:'left',
+      });
+    }catch(e){}
+  },[gsiReady,mode]);
+
+  useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
+  useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
+
+  const submit=async e=>{
+    e.preventDefault();
+    setError('');
+    if(!email.trim()){setError('email is required');return;}
+    if(!password){setError('password is required');return;}
+    if(mode==='signup'){
+      if(!name.trim()){setError('name is required');return;}
+      if(password!==confirm){setError('passwords do not match');return;}
+      setLoading(true);
+      const res=auth.signUp(name,email,password);
+      setLoading(false);
+      if(res.error){setError(res.error);return;}
+      onAuth(res.user);
+    }else{
+      setLoading(true);
+      const res=auth.signIn(email,password);
+      setLoading(false);
+      if(res.error){setError(res.error);return;}
+      onAuth(res.user);
+    }
+  };
+
+  const fieldStyle={width:'100%',background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'10px 12px',outline:'none',boxSizing:'border-box',letterSpacing:'0.02em'};
+  const focusStyle={borderColor:'var(--v1-accent)'};
+
+  return(
+    <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
+      {/* grid background already applied by .v1 */}
+
+      {/* logo */}
+      <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
+        <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
+        <span style={{fontWeight:600}}>Andreev</span>
+        <span style={{color:'var(--v1-fg-3)'}}>.net</span>
+        <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
+      </div>
+
+      {/* card */}
+      <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
+        {/* mode tabs */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
+          {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
+            <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={submit} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+
+          {/* Google Sign-In button */}
+          {gsiReady?(
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <div ref={gBtnRef} style={{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}/>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+              </div>
+            </div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              <button type="button" disabled style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-hover)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'not-allowed',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+                <svg width="16" height="16" viewBox="0 0 48 48" style={{flexShrink:0}}>
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                  <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                  <path fill="none" d="M0 0h48v48H0z"/>
+                </svg>
+                continue with google
+              </button>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
+                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+              </div>
+            </div>
+          )}
+
+          {mode==='signup'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
+              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+          )}
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
+            <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+          </div>
+          <div style={{display:'flex',flexDirection:'column',gap:5}}>
+            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
+              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+          </div>
+          {mode==='signup'&&(
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
+              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+          )}
+          {error&&(
+            <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
+              ✕ {error}
+            </div>
+          )}
+          <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
+            {loading?'...':(mode==='signin'?'sign in →':'create account →')}
+          </button>
+        </form>
+
+        <div style={{borderTop:'1px solid var(--v1-rule)',padding:'12px 24px',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'center',letterSpacing:'0.04em'}}>
+          {mode==='signin'?<>no account? <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>create one</button></>
+            :<>already have one? <button onClick={()=>setMode('signin')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>sign in</button></>}
+        </div>
+      </div>
+
+      {/* footer note */}
+      <div style={{position:'absolute',bottom:16,fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.12em',textTransform:'uppercase'}}>
+        accounts stored locally · no data sent anywhere
+      </div>
+    </div>
+  );
+}
+
+/* ── SHELL ── */
+const TABS=[
+  {id:'dashboard',label:'home',   kbd:'1'},
+  {id:'timer',    label:'session',kbd:'2'},
+  {id:'calendar', label:'cal',    kbd:'3'},
+  {id:'leader',   label:'rank',   kbd:'4'},
+  {id:'heatmap',  label:'hours',  kbd:'5'},
+  {id:'subjects', label:'subj',   kbd:'6'},
+  {id:'log',      label:'log',    kbd:'7'},
+  {id:'friend',   label:'net',    kbd:'8'},
+];
+
+const DEFAULT_SESSION={active:false,subject:'',startedAt:0,elapsed:0,paused:false,breakSecs:0,pausedAt:null};
+const PRESET_SUBJECTS=D.subjects.map(s=>s.name);
+
+function SubjectPicker({onStart,onClose}){
+  const[custom,setCustom]=useState('');
+  const[picked,setPicked]=useState(null);
+  const choose=subj=>{if(subj)onStart(subj);};
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(5,6,8,0.80)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:420,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+          <span style={{color:'var(--v1-accent)'}}>◆</span>
+          <span style={{color:'var(--v1-fg-2)'}}>begin session · pick subject</span>
+          <span style={{flex:1}}/>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
+        </div>
+        <div style={{padding:18,display:'flex',flexDirection:'column',gap:12}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {PRESET_SUBJECTS.map(s=>{const subj=D.subjects.find(x=>x.name===s);const color=subj?subj.color:'var(--v1-accent)';const a=picked===s;return(
+              <button key={s} onClick={()=>setPicked(s)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:a?'rgba(79,123,255,0.10)':'var(--v1-bg)',border:`1px solid ${a?color:'var(--v1-rule-strong)'}`,color:a?'var(--v1-fg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',letterSpacing:'0.04em',textAlign:'left'}}>
+                <span style={{width:8,height:8,background:color,flexShrink:0}}/>
+                {s}
+              </button>
+            );})}
+          </div>
+          <div style={{borderTop:'1px solid var(--v1-rule)',paddingTop:12}}>
+            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>or type custom subject</div>
+            <Input value={custom} onChange={v=>{setCustom(v);setPicked(null);}} placeholder="e.g. chemistry, language..." autoFocus={false}
+              onKeyDown={e=>{if(e.key==='Enter'&&custom.trim()){choose(custom.trim());}}}/>
+          </div>
+          <button
+            disabled={!picked&&!custom.trim()}
+            onClick={()=>choose(picked||custom.trim())}
+            style={{...Btn.md,background:(picked||custom.trim())?'var(--v1-accent)':'transparent',color:(picked||custom.trim())?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:(picked||custom.trim())?'var(--v1-accent)':'var(--v1-rule)',opacity:(picked||custom.trim())?1:0.5,width:'100%',justifyContent:'center',display:'flex',alignItems:'center',gap:8}}>
+            ▸ begin session{(picked||custom.trim())?` · ${picked||custom.trim()}`:''}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Shell({user,onLogout}){
+  const[screen,setScreen]=useState('dashboard');
+  const[weeklyTarget,setWeeklyTarget]=useState(20); // hours
+  const[sessions,setSessions]=useState([]);
+  const[sessionState,setSessionState]=useState(DEFAULT_SESSION);
+  const[showPicker,setShowPicker]=useState(false);
+  const[showFilter,setShowFilter]=useState(false);
+  const[filterSubjects,setFilterSubjects]=useState([]);
+  const[filterMinProd,setFilterMinProd]=useState(0);
+  const tick=useTick(1000);
+
+  // ⌘K shortcut
+  useEffect(()=>{
+    const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
+    window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
+  },[]);
+  const now=new Date();
+  const clockStr=now.toUTCString().split(' ')[4];
+
+  useEffect(()=>{
+    const onKey=e=>{
+      if(e.key==='Escape'&&showPicker){setShowPicker(false);return;}
+      const t=TABS.find(t=>t.kbd===e.key);if(t)setScreen(t.id);
+    };
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[showPicker]);
+
+  const handleBegin=()=>{
+    if(sessionState.active){setScreen('timer');return;}
+    setShowPicker(true);
+  };
+
+  const handleStartSession=subj=>{
+    setShowPicker(false);
+    setSessionState({active:true,subject:subj,startedAt:Date.now(),elapsed:0,paused:false,breakSecs:0,pausedAt:null});
+    setScreen('timer');
+  };
+
+  const handlePause=()=>{
+    setSessionState(s=>{
+      if(!s.active)return s;
+      if(s.paused){
+        // resume — accumulate break time
+        const brk=s.pausedAt?Math.floor((Date.now()-s.pausedAt)/1000):0;
+        return{...s,paused:false,startedAt:Date.now(),breakSecs:(s.breakSecs||0)+brk,pausedAt:null};
+      }else{
+        // pause — freeze elapsed, record pause start
+        const now2=Date.now();
+        return{...s,paused:true,elapsed:s.elapsed+Math.floor((now2-s.startedAt)/1000),pausedAt:now2};
+      }
+    });
+  };
+
+  const handleCommit=(rating,elapsed,breakSecs)=>{
+    const now2=new Date();
+    const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
+    const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    const dayName=DAYS[now2.getDay()];
+    const dayNum=now2.getDate();
+    const monName=MONTHS[now2.getMonth()];
+    const dayStr=`${dayName} ${dayNum}`;
+    const hh=String(now2.getHours()).padStart(2,'0');
+    const mm=String(now2.getMinutes()).padStart(2,'0');
+    const timeStr=`${hh}:${mm}`;
+    const hrs=Math.floor(elapsed/3600);
+    const mins=Math.floor((elapsed%3600)/60);
+    const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
+    const subj=D.subjects.find(s=>s.name===sessionState.subject);
+    const color=subj?subj.color:'#5C6776';
+    const brk=breakSecs||0;
+    const eff=brk>0?Math.round(elapsed/(elapsed+brk)*100):null;
+    const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,productivity:rating,note:'',breakSecs:brk,efficiency:eff};
+    setSessions(prev=>[newEntry,...prev]);
+    setSessionState(DEFAULT_SESSION);
+    setScreen('dashboard');
+  };
+
+  const handleDiscard=()=>{
+    setSessionState(DEFAULT_SESSION);
+    setScreen('dashboard');
+  };
+
+  const handleLogManual=({subject,secs,rating,note})=>{
+    const now2=new Date();
+    const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
+    const dayStr=`${DAYS[now2.getDay()]} ${now2.getDate()}`;
+    const hh=String(now2.getHours()).padStart(2,'0');
+    const mm=String(now2.getMinutes()).padStart(2,'0');
+    const hrs=Math.floor(secs/3600);
+    const mins=Math.floor((secs%3600)/60);
+    const durStr=`${hrs}h ${String(mins).padStart(2,'0')}m`;
+    const subj=D.subjects.find(s=>s.name===subject);
+    const color=subj?subj.color:'#5C6776';
+    setSessions(prev=>[{day:dayStr,time:`${hh}:${mm}`,subject,color,duration:durStr,productivity:rating,note:note||''},...prev]);
+    setScreen('log');
+  };
+
+  const curTab=TABS.find(t=>t.id===screen);
+  const wkHours=sessions.reduce((acc,s)=>{
+    if(s.secs!=null)return acc+(s.secs/3600);
+    const m=s.duration?.match(/(\d+)h\s+(\d+)m/);
+    return acc+(m?parseInt(m[1])+parseInt(m[2])/60:0);
+  },0);
+  const paceVal=Math.round((wkHours/weeklyTarget)*100);
+  const paceTone=paceVal>=100?'up':paceVal>=75?'flat':'down';
+
+  return(
+    <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
+      {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)}/>}
+      {showFilter&&<FilterPanel subjects={sessions} onClose={()=>setShowFilter(false)} filterSubjects={filterSubjects} setFilterSubjects={setFilterSubjects} filterMinProd={filterMinProd} setFilterMinProd={setFilterMinProd} onNav={setScreen}/>}
+
+      {/* TOP RAIL */}
+      <header style={{display:'grid',gridTemplateColumns:'auto 1fr auto auto auto',alignItems:'center',gap:16,padding:'0 16px',height:40,flexShrink:0,background:'var(--v1-bg)',borderBottom:'1px solid var(--v1-rule)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:0,fontSize:12,fontFamily:'var(--v1-mono)'}}>
+          <span style={{color:'var(--v1-accent)',fontWeight:600}}>[</span>
+          <span style={{fontWeight:600,letterSpacing:'0.02em'}}>{user?.name||'Andreev'}</span>
+          <span style={{color:'var(--v1-fg-3)'}}>.net</span>
+          <Cursor size="0.55em" color="var(--v1-accent)"/>
+          <span style={{color:'var(--v1-accent)',fontWeight:600}}>]</span>
+        </div>
+        <nav style={{display:'flex',gap:2,alignItems:'center',overflow:'hidden'}}>
+          {TABS.map(t=>{const a=screen===t.id;return(
+            <button key={t.id} onClick={()=>setScreen(t.id)} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:a?'var(--v1-bg-elev)':'transparent',color:a?'var(--v1-fg)':'var(--v1-fg-3)',border:'none',borderBottom:a?'1px solid var(--v1-accent)':'1px solid transparent',padding:'11px 12px',cursor:'pointer',whiteSpace:'nowrap',letterSpacing:'0.04em',position:'relative',top:1}}>
+              <span style={{color:'var(--v1-fg-muted)',marginRight:6}}>{t.kbd}</span>{t.label}
+            </button>
+          );})}
+        </nav>
+        <span style={{fontSize:11,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{clockStr} <span style={{color:'var(--v1-fg-muted)'}}>UTC</span></span>
+        <button onClick={onLogout} title={user?.email} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:'0.08em'}}>↩ out</button>
+        <button onClick={()=>setShowFilter(f=>!f)} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 8px',border:`1px solid ${(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-rule)'}`,fontSize:11,color:(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-fg-3)',background:'transparent',cursor:'pointer',fontFamily:'var(--v1-mono)'}}>
+          <span>⌕</span><span>search</span>{(filterSubjects.length>0||filterMinProd>0)&&<span style={{background:'var(--v1-accent)',color:'var(--v1-bg)',borderRadius:2,padding:'0 4px',fontSize:9,fontWeight:700}}>{filterSubjects.length+(filterMinProd>0?1:0)}</span>}<span style={{marginLeft:4,color:'var(--v1-fg-muted)',fontSize:10}}>⌘K</span>
+        </button>
+        <button onClick={handleBegin} style={{fontFamily:'var(--v1-mono)',fontSize:11,background:sessionState.active?'var(--v1-up)':'var(--v1-accent)',color:'var(--v1-bg)',border:'none',padding:'6px 14px',cursor:'pointer',fontWeight:600,letterSpacing:'0.04em'}}>{sessionState.active?'● session →':'begin →'}</button>
+      </header>
+
+      {/* STATUS STRIP — each cell navigates to its related tab */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'1px solid var(--v1-rule)',flexShrink:0,background:'var(--v1-bg-elev)'}}>
+        {[
+          {k:'today',  v:fmtHM(wkHours/7),           d:'hours today',                    up:wkHours>0, nav:'dashboard'},
+          {k:'streak', v:`${sessions.length>0?1:0}d`, d:sessions.length>0?'keep going':'start studying', up:false, nav:'dashboard'},
+          {k:'wk',     v:fmtHM(wkHours),              d:`of ${weeklyTarget}h target`,     up:wkHours>0, nav:'heatmap'},
+          {k:'rank',   v:'—',                          d:'invite friends to rank',         up:false, nav:'leader'},
+          {k:'peak',   v:'—',                          d:'no data yet',                    up:false, nav:'heatmap'},
+          {k:'pace',   v:`${paceVal}%`,                d:`of ${weeklyTarget}h target`,     up:paceVal>=75, nav:'heatmap'},
+        ].map((c,i)=>(
+          <div key={c.k} onClick={()=>setScreen(c.nav)} style={{padding:'9px 14px',borderRight:i<5?'1px solid var(--v1-rule)':'none',display:'flex',flexDirection:'column',gap:3,cursor:'pointer',transition:'background 80ms'}}
+            onMouseEnter={e=>e.currentTarget.style.background='rgba(79,123,255,0.06)'}
+            onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+            <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>{c.k}</span>
+            <span style={{fontSize:17,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em',color:'var(--v1-fg)'}}>{c.v}</span>
+            <span style={{fontSize:10,color:c.up?'var(--v1-up)':'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums'}}>{c.up&&'▲ '}{c.d}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* MAIN */}
+      <main style={{flex:1,overflow:'hidden',padding:0,position:'relative',display:'flex',flexDirection:'column'}}>
+        {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState}/>}
+        {screen==='timer'&&<div style={{overflowY:'auto',flex:1,display:'flex',flexDirection:'column'}}><Timer sessionState={sessionState} onPause={handlePause} onCommit={handleCommit} onDiscard={handleDiscard} onStart={handleStartSession} onLogManual={handleLogManual}/></div>}
+        {screen==='calendar'&&<Calendar/>}
+        {screen==='leader'&&<div style={{overflowY:'auto',flex:1}}><Leader/></div>}
+        {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget}/></div>}
+        {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects/></div>}
+        {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
+        {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend/></div>}
+      </main>
+
+      {/* FOOTER */}
+      <footer style={{height:24,flexShrink:0,borderTop:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',display:'flex',alignItems:'center',gap:14,padding:'0 14px',fontSize:10,color:'var(--v1-fg-3)',letterSpacing:'0.06em'}}>
+        <span style={{display:'inline-flex',alignItems:'center',gap:5}}><span style={{width:6,height:6,background:'var(--v1-up)',borderRadius:'50%'}} className="v1-pulse"/>SYNC OK</span>
+        <span>USR <span style={{color:'var(--v1-fg-2)'}}>{user?.name||'you'}</span></span>
+        <span>NET <span style={{color:'var(--v1-fg-2)'}}>1/1</span></span>
+        <span>~/{curTab?.label}</span>
+        <span style={{flex:1}}/>
+        <span style={{color:'var(--v1-fg-muted)'}}>──── press [1—8] to navigate ────</span>
+        <span style={{flex:1}}/>
+        <span>SESSIONS <span style={{color:'var(--v1-fg-2)'}}>{sessions.length}</span></span>
+      </footer>
+    </div>
+  );
+}
+
+function App(){
+  const[user,setUser]=useState(()=>auth.getUser());
+  const handleLogout=()=>{auth.signOut();setUser(null);};
+  if(!user) return <AuthScreen onAuth={setUser}/>;
+  return <Shell user={user} onLogout={handleLogout}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
