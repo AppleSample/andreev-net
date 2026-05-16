@@ -622,7 +622,7 @@ function DashAgendaCompact({onNav}){
   );
 }
 
-function Dashboard({onNav,sessions,sessionState}){
+function Dashboard({onNav,sessions,sessionState,subjects=[]}){
   const me=D.leaderboard.find(u=>u.isYou);
   const secsThisWeek=sessions.reduce((acc,s)=>{
     if(s.secs!=null)return acc+s.secs;
