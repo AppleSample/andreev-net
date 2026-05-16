@@ -1535,123 +1535,46 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
 }
 
 /* ── AUTH SCREEN ── */
-/* Uses Netlify Identity for Google OAuth (enable at app.netlify.com → Identity)
-   Falls back to local email/password when Identity is not configured             */
-function GoogleSetupModal({onClose,onSave}){
-  const[clientId,setClientId]=useState('');
-  const save=()=>{
-    const v=clientId.trim();
-    if(!v||!v.includes('.apps.googleusercontent.com')){return;}
-    localStorage.setItem('google_client_id',v);
-    onSave();
-  };
-  return(
-    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:500,background:'rgba(5,6,8,0.85)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:'100%',maxWidth:480,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)'}}>
-        <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 18px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)',fontSize:10,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)'}}>
-          <span style={{color:'var(--v1-accent)'}}>◆</span>
-          <span style={{color:'var(--v1-fg-2)'}}>set up google sign-in</span>
-          <span style={{flex:1}}/>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:11}}>✕</button>
-        </div>
-        <div style={{padding:20,display:'flex',flexDirection:'column',gap:14}}>
-          <div style={{fontSize:11,color:'var(--v1-fg-2)',lineHeight:1.7}}>
-            Google Sign-In needs a free OAuth Client ID. Takes 3 minutes:
-          </div>
-          {[
-            ['1','Go to','console.cloud.google.com','https://console.cloud.google.com'],
-            ['2','Create a new project (any name)','',''],
-            ['3','APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID','',''],
-            ['4','Application type: Web · Add authorised JS origin:','andreev-net.netlify.app',''],
-            ['5','Copy the Client ID (ends in .apps.googleusercontent.com) and paste below','',''],
-          ].map(([n,text,link,href])=>(
-            <div key={n} style={{display:'flex',gap:10,alignItems:'flex-start'}}>
-              <span style={{width:20,height:20,background:'var(--v1-accent)',color:'var(--v1-bg)',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:700,flexShrink:0,marginTop:1}}>{n}</span>
-              <span style={{fontSize:11,color:'var(--v1-fg-3)',lineHeight:1.5}}>
-                {text}{' '}
-                {link&&<span style={{color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10}}>{link}</span>}
-                {href&&<a href={href} target="_blank" rel="noreferrer" style={{color:'var(--v1-accent)',fontSize:10,marginLeft:4}}>↗</a>}
-              </span>
-            </div>
-          ))}
-          <div style={{display:'flex',gap:8,marginTop:4}}>
-            <input
-              value={clientId} onChange={e=>setClientId(e.target.value)}
-              placeholder="xxxxxxxxxx.apps.googleusercontent.com"
-              style={{flex:1,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:11,padding:'9px 10px',outline:'none'}}
-              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'}
-              onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}
-              onKeyDown={e=>{if(e.key==='Enter')save();}}
-              autoFocus
-            />
-            <button onClick={save}
-              disabled={!clientId.includes('.apps.googleusercontent.com')}
-              style={{padding:'9px 16px',background:clientId.includes('.apps.googleusercontent.com')?'var(--v1-accent)':'var(--v1-bg-hover)',color:clientId.includes('.apps.googleusercontent.com')?'var(--v1-bg)':'var(--v1-fg-muted)',border:'none',fontFamily:'var(--v1-mono)',fontSize:11,cursor:'pointer',letterSpacing:'0.08em',fontWeight:600}}>
-              save →
-            </button>
-          </div>
-          <div style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em'}}>
-            saved to your browser · no redeploy needed
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* Google sign-in via Netlify Identity — zero Google Cloud Console setup needed.
+   Enable once at: app.netlify.com → your site → Identity → Enable → External Providers → Google */
 
 function AuthScreen({onAuth}){
-  const[mode,setMode]=useState('signup'); // 'signin'|'signup' — signup shown first for new visitors
+  const[mode,setMode]=useState('signup');
   const[name,setName]=useState('');
   const[email,setEmail]=useState('');
   const[password,setPassword]=useState('');
   const[confirm,setConfirm]=useState('');
   const[error,setError]=useState('');
   const[loading,setLoading]=useState(false);
-  const[gsiReady,setGsiReady]=useState(false);
-  const[showGoogleSetup,setShowGoogleSetup]=useState(false);
+  const[gLoading,setGLoading]=useState(false);
   const emailRef=useRef(null);
-  const gBtnRef=useRef(null);
 
-  const initGSI=useCallback(()=>{
-    const cid=localStorage.getItem('google_client_id')||'';
-    if(!cid||!window.google?.accounts)return;
-    try{
-      window.google.accounts.id.initialize({
-        client_id:cid,
-        callback:(response)=>{
-          const payload=decodeGoogleJwt(response.credential);
-          if(!payload){setError('google sign-in failed — could not decode token');return;}
-          const res=auth.signInWithGoogle({id:payload.sub,name:payload.name,email:payload.email});
-          if(res.error){setError(res.error);return;}
-          onAuth(res.user);
-        },
-        auto_select:false,cancel_on_tap_outside:true,
-      });
-      setGsiReady(true);
-    }catch(e){}
+  /* Wire up Netlify Identity once on mount */
+  useEffect(()=>{
+    if(!window.netlifyIdentity)return;
+    netlifyIdentity.init({APIUrl:'https://andreev-net.netlify.app/.netlify/identity'});
+    const handler=u=>{
+      if(!u)return;
+      netlifyIdentity.close();
+      const user={id:u.id,name:u.user_metadata?.full_name||u.email.split('@')[0],email:u.email,avatar:u.user_metadata?.avatar_url||null,provider:'netlify'};
+      localAuth.saveSession(user);
+      setGLoading(false);
+      onAuth(user);
+    };
+    netlifyIdentity.on('login',handler);
+    netlifyIdentity.on('error',err=>{setGLoading(false);setError(err?.message||'google sign-in failed');});
+    return()=>{try{netlifyIdentity.off('login',handler);}catch(e){}};
   },[onAuth]);
-
-  /* initialise Google Identity Services when script loads */
-  useEffect(()=>{
-    const t=setInterval(()=>{if(window.google?.accounts){initGSI();clearInterval(t);}},300);
-    initGSI();
-    return()=>clearInterval(t);
-  },[initGSI]);
-
-  /* render Google button into ref div whenever ready */
-  useEffect(()=>{
-    if(!gsiReady||!gBtnRef.current)return;
-    try{
-      window.google.accounts.id.renderButton(gBtnRef.current,{
-        type:'standard',theme:'outline',size:'large',width:352,
-        text:mode==='signup'?'signup_with':'signin_with',
-        shape:'square',logo_alignment:'left',
-      });
-    }catch(e){}
-  },[gsiReady,mode]);
 
   useEffect(()=>{setError('');setName('');setPassword('');setConfirm('');},[mode]);
   useEffect(()=>{setTimeout(()=>emailRef.current?.focus(),60);},[mode]);
+
+  const handleGoogle=()=>{
+    if(!window.netlifyIdentity){setError('netlify identity not loaded — try refreshing');return;}
+    setGLoading(true);
+    setError('');
+    netlifyIdentity.open();
+  };
 
   const submit=async e=>{
     e.preventDefault();
@@ -1662,13 +1585,13 @@ function AuthScreen({onAuth}){
       if(!name.trim()){setError('name is required');return;}
       if(password!==confirm){setError('passwords do not match');return;}
       setLoading(true);
-      const res=auth.signUp(name,email,password);
+      const res=localAuth.signUp(name,email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
     }else{
       setLoading(true);
-      const res=auth.signIn(email,password);
+      const res=localAuth.signIn(email,password);
       setLoading(false);
       if(res.error){setError(res.error);return;}
       onAuth(res.user);
@@ -1689,7 +1612,6 @@ function AuthScreen({onAuth}){
 
   return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',position:'relative'}}>
-      {showGoogleSetup&&<GoogleSetupModal onClose={()=>setShowGoogleSetup(false)} onSave={()=>{setShowGoogleSetup(false);initGSI();}}/>}
 
       {/* logo */}
       <div style={{position:'absolute',top:20,left:24,fontFamily:'var(--v1-mono)',fontSize:13,display:'flex',alignItems:'center',gap:0}}>
@@ -1703,76 +1625,65 @@ function AuthScreen({onAuth}){
       <div style={{width:'100%',maxWidth:400,border:'1px solid var(--v1-rule-strong)',background:'var(--v1-bg-elev)',fontFamily:'var(--v1-mono)'}}>
         {/* mode tabs */}
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',borderBottom:'1px solid var(--v1-rule)'}}>
-          {[['signin','sign in'],['signup','create account']].map(([id,label])=>(
+          {[['signup','create account'],['signin','sign in']].map(([id,label])=>(
             <button key={id} onClick={()=>setMode(id)} style={{padding:'13px 0',background:'transparent',border:'none',borderBottom:`2px solid ${mode===id?'var(--v1-accent)':'transparent'}`,color:mode===id?'var(--v1-fg)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase',cursor:'pointer',transition:'all 100ms'}}>
               {label}
             </button>
           ))}
         </div>
 
-        <form onSubmit={submit} style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
+        <div style={{padding:24,display:'flex',flexDirection:'column',gap:12}}>
 
-          {/* Google Sign-In button */}
-          {gsiReady?(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <div ref={gBtnRef} style={{width:'100%',minHeight:44,display:'flex',alignItems:'center',justifyContent:'center'}}/>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-              </div>
-            </div>
-          ):(
-            <div style={{display:'flex',flexDirection:'column',gap:8}}>
-              <button type="button" onClick={()=>setShowGoogleSetup(true)}
-                style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:11,letterSpacing:'0.08em',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,transition:'border-color 80ms'}}
-                onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}
-                onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
-                <GoogleIcon/>
-                continue with google
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',marginLeft:4}}>· setup →</span>
-              </button>
-              <div style={{display:'flex',alignItems:'center',gap:10}}>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-                <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
-                <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
-              </div>
-            </div>
-          )}
-
-          {mode==='signup'&&(
-            <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
-              <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
-                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-            </div>
-          )}
-          <div style={{display:'flex',flexDirection:'column',gap:5}}>
-            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
-            <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
-              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-          </div>
-          <div style={{display:'flex',flexDirection:'column',gap:5}}>
-            <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
-            <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
-              onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-          </div>
-          {mode==='signup'&&(
-            <div style={{display:'flex',flexDirection:'column',gap:5}}>
-              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
-              <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
-                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
-            </div>
-          )}
-          {error&&(
-            <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
-              ✕ {error}
-            </div>
-          )}
-          <button type="submit" disabled={loading} style={{marginTop:4,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
-            {loading?'...':(mode==='signin'?'sign in →':'create account →')}
+          {/* Google button */}
+          <button type="button" onClick={handleGoogle} disabled={gLoading}
+            style={{width:'100%',padding:'11px 0',background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.06em',cursor:gLoading?'not-allowed':'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:10,transition:'all 80ms',opacity:gLoading?0.6:1}}
+            onMouseEnter={e=>{if(!gLoading){e.currentTarget.style.borderColor='var(--v1-accent)';e.currentTarget.style.color='var(--v1-fg)';}}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule-strong)';e.currentTarget.style.color='var(--v1-fg-2)';}}>
+            {gLoading?<span style={{fontSize:11,letterSpacing:'0.1em'}}>opening google…</span>:<><GoogleIcon/><span>continue with google</span></>}
           </button>
-        </form>
+
+          {/* divider */}
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+            <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.14em',textTransform:'uppercase'}}>or</span>
+            <div style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+          </div>
+
+          <form onSubmit={submit} style={{display:'flex',flexDirection:'column',gap:12}}>
+            {mode==='signup'&&(
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>display name</label>
+                <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. sasha" style={fieldStyle}
+                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+              </div>
+            )}
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>email</label>
+              <input ref={emailRef} value={email} onChange={e=>setEmail(e.target.value)} type="email" placeholder="you@example.com" style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:5}}>
+              <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>password</label>
+              <input value={password} onChange={e=>setPassword(e.target.value)} type="password" placeholder={mode==='signup'?'min 6 characters':'••••••••'} style={fieldStyle}
+                onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+            </div>
+            {mode==='signup'&&(
+              <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                <label style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase'}}>confirm password</label>
+                <input value={confirm} onChange={e=>setConfirm(e.target.value)} type="password" placeholder="••••••••" style={fieldStyle}
+                  onFocus={e=>e.target.style.borderColor='var(--v1-accent)'} onBlur={e=>e.target.style.borderColor='var(--v1-rule-strong)'}/>
+              </div>
+            )}
+            {error&&(
+              <div style={{padding:'8px 10px',background:'rgba(229,72,77,0.08)',border:'1px solid var(--v1-down)',color:'var(--v1-down)',fontSize:11,letterSpacing:'0.04em'}}>
+                ✕ {error}
+              </div>
+            )}
+            <button type="submit" disabled={loading} style={{marginTop:2,padding:'11px 0',background:'var(--v1-accent)',color:'var(--v1-bg)',border:'none',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.1em',textTransform:'uppercase',cursor:loading?'not-allowed':'pointer',opacity:loading?0.7:1,fontWeight:600,transition:'opacity 100ms'}}>
+              {loading?'...':(mode==='signin'?'sign in →':'create account →')}
+            </button>
+          </form>
+        </div>
 
         <div style={{borderTop:'1px solid var(--v1-rule)',padding:'12px 24px',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'center',letterSpacing:'0.04em'}}>
           {mode==='signin'?<>no account? <button onClick={()=>setMode('signup')} style={{background:'none',border:'none',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)',fontSize:10,cursor:'pointer',padding:0}}>create one</button></>
