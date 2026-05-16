@@ -1392,11 +1392,21 @@ function SubjectsDonut({scoped,total}){
   );
 }
 
-function Subjects(){
+function Subjects({user}){
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
   const[manageOpen,setManageOpen]=useState(false);
-  const[subjs,setSubjs]=useState(()=>D.subjects.map((s,i)=>({...s,color:SUBJ_COLORS[i]||s.color,_idx:i})));
+  const[subjs,setSubjs]=useState([]);
+  const[loadingSubjs,setLoadingSubjs]=useState(true);
+
+  useEffect(()=>{
+    if(!user?.id){setLoadingSubjs(false);return;}
+    sbAPI.loadSubjects(user.id).then(data=>{
+      setSubjs(data.map((s,i)=>({...s,_idx:s.id})));
+      setLoadingSubjs(false);
+    });
+  },[user?.id]);
+
   const scoped=subjs.map((s,i)=>{const series=subjSeries(i,scope);return{...s,series,total:sumH(series)};});
   const grand=scoped.reduce((a,s)=>a+s.total,0);
   const sc=SCOPES.find(s=>s.id===scope);
