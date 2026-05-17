@@ -1301,7 +1301,7 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
           )}
           {tab==='to-dos'&&(
             <div style={{padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}>
-              {selTodos.length===0&&<div style={{fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',padding:'8px 0'}}>no todos for this day — add one below</div>}
+              {selTodos.length===0&&<div style={{fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',padding:'8px 0'}}>no to-dos for this day — add one below</div>}
               {selTodos.map((t)=>{const isDone=!!todoStates[t.id];return(
                 <div key={t.id} style={{border:`1px solid ${isDone?'var(--v1-rule)':'var(--v1-rule)'}`,background:'var(--v1-bg)',opacity:isDone?0.6:1}}>
                   <div style={{display:'grid',gridTemplateColumns:'4px 20px 1fr auto auto auto',alignItems:'center',gap:10,padding:'10px 12px',cursor:'pointer'}}
