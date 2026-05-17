@@ -777,7 +777,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
 }
 
 /* ── TIMER ── */
-function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subjects=[]}){
+function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subjects=[],pomOn,setPomOn,pomWork,setPomWork,pomBreak,setPomBreak,pomPhase,setPomPhase,pomPhaseStart,setPomPhaseStart}){
   const tick=useTick(1000);
   const elapsed=sessionState.active
     ?(sessionState.paused
