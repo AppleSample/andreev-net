@@ -1220,7 +1220,7 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
                         </div>
                         <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                           {e.subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>{e.subject}</span>}
-                          {e.location&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>📍 {e.location}</span>}
+                          {e.location&&<span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>@ {e.location}</span>}
                         </div>
                         {e.note&&<div style={{fontFamily:'var(--v1-sans)',fontSize:11,color:'var(--v1-fg-3)',marginTop:4,fontStyle:'italic'}}>{e.note}</div>}
                       </div>
