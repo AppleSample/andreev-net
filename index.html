@@ -1555,6 +1555,9 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
 /* ── HOURS / HEATMAP ── */
 function DailyHeatmap({sessions}){
   const[hov,setHov]=useState(null);
+  const WEEKS=24;
+  const DAYS=['mon','tue','wed','thu','fri','sat','sun'];
+  const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
 
   const dayMap={};
   sessions.filter(s=>s.created_at).forEach(s=>{
@@ -1563,22 +1566,18 @@ function DailyHeatmap({sessions}){
     dayMap[k]=(dayMap[k]||0)+sessH(s);
   });
 
-  const WEEKS=9;
-  const DAYLABELS=['mon','tue','wed','thu','fri','sat','sun'];
-  const MONTHS=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-
   const today=new Date();today.setHours(0,0,0,0);
   const todayDow=(today.getDay()+6)%7;
   const gridStart=new Date(today);
   gridStart.setDate(today.getDate()-todayDow-(WEEKS-1)*7);
 
+  // cells[week][day]
   const cells=Array.from({length:WEEKS},(_,w)=>Array.from({length:7},(_,d)=>{
     const date=new Date(gridStart);
     date.setDate(gridStart.getDate()+w*7+d);
     const isFuture=date>today;
     const k=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-    const hours=isFuture?0:(dayMap[k]||0);
-    return{date:new Date(date),hours,isFuture,k};
+    return{date:new Date(date),hours:isFuture?0:(dayMap[k]||0),isFuture,k};
   }));
 
   const cellColor=({hours,isFuture})=>{
@@ -1588,66 +1587,45 @@ function DailyHeatmap({sessions}){
     return`rgba(79,123,255,${(0.25+t*0.75).toFixed(2)})`;
   };
 
-  const monthLabel=w=>{
+  const colLabel=w=>{
     const d=new Date(gridStart);d.setDate(gridStart.getDate()+w*7);
     const prev=new Date(gridStart);prev.setDate(gridStart.getDate()+(w-1)*7);
     if(w===0||d.getMonth()!==prev.getMonth())return MONTHS[d.getMonth()];
-    return null;
+    return'';
   };
 
-  const GAP=4;
-
   return(
-    <div style={{position:'relative',userSelect:'none',width:'100%'}}>
-      {/* Month labels row */}
-      <div style={{display:'flex',marginLeft:36,marginBottom:4,gap:GAP}}>
+    <div style={{position:'relative',userSelect:'none'}}>
+      <div style={{display:'grid',gridTemplateColumns:`40px repeat(${WEEKS},1fr)`,gap:1}}>
+        <div/>
         {Array.from({length:WEEKS},(_,w)=>(
-          <div key={w} style={{flex:1,fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',overflow:'visible',whiteSpace:'nowrap'}}>
-            {monthLabel(w)||''}
-          </div>
+          <div key={w} style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',overflow:'visible',whiteSpace:'nowrap'}}>{colLabel(w)}</div>
+        ))}
+        {DAYS.map((lbl,d)=>(
+          <React.Fragment key={d}>
+            <div style={{fontSize:10,color:'var(--v1-fg-3)',display:'flex',alignItems:'center',fontFamily:'var(--v1-mono)'}}>{lbl}</div>
+            {Array.from({length:WEEKS},(_,w)=>{
+              const cell=cells[w][d];
+              return(
+                <div key={w}
+                  style={{height:36,background:cellColor(cell),cursor:cell.isFuture?'default':'crosshair',transition:'opacity 80ms',opacity:hov&&hov.k===cell.k?0.65:1}}
+                  onMouseEnter={e=>{if(!cell.isFuture)setHov({...cell,cx:e.clientX,cy:e.clientY});}}
+                  onMouseMove={e=>{if(!cell.isFuture)setHov(h=>h?{...h,cx:e.clientX,cy:e.clientY}:null);}}
+                  onMouseLeave={()=>setHov(null)}
+                />
+              );
+            })}
+          </React.Fragment>
         ))}
       </div>
-
-      {/* Grid row: day labels + cells */}
-      <div style={{display:'flex',gap:GAP,alignItems:'stretch'}}>
-        {/* Day labels */}
-        <div style={{width:32,flexShrink:0,display:'grid',gridTemplateRows:`repeat(7,36px)`,gap:GAP}}>
-          {DAYLABELS.map((lbl,i)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',lineHeight:1}}>{lbl}</div>
-          ))}
-        </div>
-
-        {/* Heatmap: 9 cols × 7 rows, fill width, fixed row height */}
-        <div style={{
-          flex:1,
-          display:'grid',
-          gridTemplateColumns:`repeat(${WEEKS},1fr)`,
-          gridTemplateRows:`repeat(7,36px)`,
-          gridAutoFlow:'column',
-          gap:GAP,
-        }}>
-          {cells.flat().map((cell,i)=>(
-            <div key={i}
-              style={{background:cellColor(cell),borderRadius:3,cursor:cell.isFuture?'default':'crosshair',transition:'opacity 80ms',opacity:hov&&hov.k===cell.k?0.65:1}}
-              onMouseEnter={e=>{if(!cell.isFuture)setHov({...cell,cx:e.clientX,cy:e.clientY});}}
-              onMouseMove={e=>{if(!cell.isFuture)setHov(h=>h?{...h,cx:e.clientX,cy:e.clientY}:null);}}
-              onMouseLeave={()=>setHov(null)}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div style={{marginTop:10,display:'flex',gap:6,alignItems:'center',fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-        {[['var(--v1-bg-elev-2)','0h'],[`rgba(79,123,255,0.25)`,'1h'],[`rgba(79,123,255,0.5)`,'2h'],[`rgba(79,123,255,0.75)`,'3h'],[`rgba(79,123,255,1.0)`,'4h+']].map(([bg,label],i)=>(
-          <div key={i} style={{display:'flex',alignItems:'center',gap:4}}>
-            <div style={{width:14,height:14,background:bg,borderRadius:2,flexShrink:0}}/>
-            <span>{label}</span>
-          </div>
+      <div style={{marginTop:12,display:'flex',gap:5,alignItems:'center',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+        <span>0h</span>{[[0.25,'1h'],[0.5,'2h'],[0.75,'3h'],[1.0,'4h+']].map(([v,lbl])=>(
+          <React.Fragment key={lbl}>
+            <div style={{width:14,height:8,background:`rgba(79,123,255,${v})`}}/>
+            <span>{lbl}</span>
+          </React.Fragment>
         ))}
       </div>
-
-      {/* Tooltip */}
       {hov&&(
         <div style={{position:'fixed',left:hov.cx+14,top:hov.cy-60,pointerEvents:'none',zIndex:600,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',padding:'7px 11px',fontFamily:'var(--v1-mono)',boxShadow:'0 4px 20px rgba(0,0,0,0.5)',minWidth:140}}>
           <div style={{fontSize:9,letterSpacing:'0.12em',color:'var(--v1-fg-3)',textTransform:'uppercase',marginBottom:4}}>
