@@ -747,8 +747,24 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
         </Block>
       </section>
 
-      {/* COL RIGHT — compact agenda */}
+      {/* COL RIGHT — studying now + compact agenda */}
       <section style={{overflowY:'auto',display:'flex',flexDirection:'column'}}>
+        {(()=>{
+          const now=Date.now();
+          const online=leaderboard.filter(u=>!u.isYou&&u.updated_at&&(now-new Date(u.updated_at))<5*60*1000);
+          if(online.length===0)return null;
+          return(
+            <Block label="studying.now" meta={`${online.length} active`}>
+              {online.map(u=>(
+                <div key={u.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid var(--v1-rule)'}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 6px #6BD89A'}}/>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',flex:1}}>{u.name}</span>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.12em',color:'#6BD89A'}}>● LIVE</span>
+                </div>
+              ))}
+            </Block>
+          );
+        })()}
         <Block label="agenda.today" meta={_now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toLowerCase()} action={<Lnk onClick={()=>onNav('calendar')}>cal →</Lnk>} noBorder>
           <DashAgenda onNav={onNav} events={events} todos={todos} todoStates={todoStates} setTodoStates={setTodoStates}/>
         </Block>
