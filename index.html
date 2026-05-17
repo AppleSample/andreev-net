@@ -1813,7 +1813,7 @@ function Subjects({user,subjects=[],setSubjects,sessions=[]}){
     <div>
       {scoped.length===0?(
         <Block label="subjects.summary" meta="no subjects yet" action={<button onClick={()=>setManageOpen(true)} style={Btn.sm}>+ add subject</button>}>
-          <EmptyState icon="📚" title="no subjects tracked yet"
+          <EmptyState icon="◇" title="no subjects tracked yet"
             hint="add subjects you study, then log sessions to see your time breakdown"
             action={<button onClick={()=>setManageOpen(true)} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'var(--v1-accent)',border:'none',color:'var(--v1-bg)',padding:'6px 16px',cursor:'pointer',fontWeight:600}}>+ add your first subject</button>}
           />
