@@ -1191,7 +1191,7 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
           </div>
           <span style={{flex:1}}/>
           <div style={{display:'flex',gap:6}}>
-            {[['events',selEvts.length],['todos',selTodos.length]].map(([t,n])=>(
+            {[['events',selEvts.length],['to-dos',selTodos.length]].map(([t,n])=>(
               <button key={t} onClick={()=>setTab(t)} style={{fontFamily:'var(--v1-mono)',fontSize:10,padding:'4px 10px',background:tab===t?'var(--v1-accent)':'transparent',color:tab===t?'var(--v1-bg)':'var(--v1-fg-muted)',border:`1px solid ${tab===t?'var(--v1-accent)':'var(--v1-rule)'}`,cursor:'pointer',letterSpacing:'0.08em'}}>
                 {t}{n>0&&<span style={{opacity:0.8}}> ({n})</span>}
               </button>
