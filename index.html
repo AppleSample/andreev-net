@@ -1409,7 +1409,7 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
         <Block label="week.summary" meta={wkMeta}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
             <KPI k="events" v={wkEvts.length} sub="this week" tone="flat"/>
-            <KPI k="todos_open" v={wkTodos.length-wkDone} sub={`${wkDone}/${wkTodos.length} done`}/>
+            <KPI k="to-dos_open" v={wkTodos.length-wkDone} sub={`${wkDone}/${wkTodos.length} done`}/>
             <KPI k="high_priority" v={wkHigh} sub="due this week" tone={wkHigh>0?'down':'up'}/>
             <KPI k="flagged" v={wkEvts.filter(e=>e.flagged).length} sub="exams / deadlines" tone={wkEvts.filter(e=>e.flagged).length>0?'down':'flat'}/>
           </div>
