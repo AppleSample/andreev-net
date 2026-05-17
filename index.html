@@ -1402,11 +1402,10 @@ function Calendar({subjects=[],events=[],setEvents,todos=[],setTodos,todoStates=
 
   const DOWS=['mon','tue','wed','thu','fri','sat','sun'];
 
-  // Week summary — compute current Mon–Sun dynamically
-  const todayDow=(_now.getDay()+6)%7; // 0=Mon
-  const wkMonDate=_now.getDate()-todayDow;
-  const wkDays=Array.from({length:7},(_,i)=>wkMonDate+i).filter(d=>d>=1&&d<=daysInMonth);
-  const wkDayStrs=wkDays.map(d=>`${calMonth.year}-${String(calMonth.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  // Week summary — always use real current week, independent of viewed month
+  const todayDow=(_now.getDay()+6)%7;
+  const thisMonday=new Date(_now);thisMonday.setDate(_now.getDate()-todayDow);
+  const wkDayStrs=Array.from({length:7},(_,i)=>{const d=new Date(thisMonday);d.setDate(thisMonday.getDate()+i);return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;});
   const wkEvts=wkDayStrs.flatMap(d=>evtsByDay[d]||[]);
   const wkTodos=wkDayStrs.flatMap(d=>todosByDay[d]||[]);
   const wkDone=wkTodos.filter(t=>todoStates[t.id]).length;
