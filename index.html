@@ -720,7 +720,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
           {(()=>{
             const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
             if(ranked.length===0)return(
-              <EmptyState icon="👥" title="you're the only one here"
+              <EmptyState icon="◉" title="you're the only one here"
                 hint="invite friends to study together and compete on the leaderboard"
               />
             );
@@ -1523,7 +1523,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
       </Block>
       <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ranked by this week`} noBorder>
         {ranked.length===0?(
-          <EmptyState icon="👥" title="invite friends to compete"
+          <EmptyState icon="◉" title="invite friends to compete"
             hint="share andreev.net with study partners — once they join, they appear here ranked by hours"
           />
         ):(
