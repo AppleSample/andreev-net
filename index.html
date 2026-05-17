@@ -799,15 +799,10 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
   const[logRating,setLogRating]=useState(null);
   const[logTime,setLogTime]=useState(()=>{const n=new Date();return`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;});
   const[logDateOffset,setLogDateOffset]=useState(0); // 0=today, 1=yesterday, 2=custom
-  // pomodoro state
-  const[pomOn,setPomOn]=useState(false);
-  const[pomWork,setPomWork]=useState(25);
-  const[pomBreak,setPomBreak]=useState(5);
-  const[pomPhase,setPomPhase]=useState('work');
-  const[pomPhaseStart,setPomPhaseStart]=useState(null);
+  // pomodoro draft/ui state (local only)
   const[editingPom,setEditingPom]=useState(false);
-  const[pomWorkDraft,setPomWorkDraft]=useState('25');
-  const[pomBreakDraft,setPomBreakDraft]=useState('5');
+  const[pomWorkDraft,setPomWorkDraft]=useState(String(pomWork));
+  const[pomBreakDraft,setPomBreakDraft]=useState(String(pomBreak));
 
   // auto phase-switch
   useEffect(()=>{
