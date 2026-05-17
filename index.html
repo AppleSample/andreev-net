@@ -651,7 +651,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
       {/* 3-stat strip */}
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
         <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
-        <MiniStat k="todos" v={`${done}/${todos_.length}`} sub={`${todos_.length?(done/todos_.length*100).toFixed(0):0}% done`} tone={done===todos_.length&&todos_.length>0?'up':'flat'}/>
+        <MiniStat k="to-dos" v={`${done}/${todos_.length}`} sub={`${todos_.length?(done/todos_.length*100).toFixed(0):0}% done`} tone={done===todos_.length&&todos_.length>0?'up':'flat'}/>
         <MiniStat k="urgent" v={highPri.length} sub="high priority" tone={highPri.length>0?'down':'flat'}/>
       </div>
       {/* events — compact */}
