@@ -1299,7 +1299,7 @@ function DayModal({sel,selDateStr,today,evtsByDay,todosByDay,todoStates,setTodoS
               </div>
             </div>
           )}
-          {tab==='todos'&&(
+          {tab==='to-dos'&&(
             <div style={{padding:'14px 18px',display:'flex',flexDirection:'column',gap:10}}>
               {selTodos.length===0&&<div style={{fontSize:11,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',padding:'8px 0'}}>no todos for this day — add one below</div>}
               {selTodos.map((t)=>{const isDone=!!todoStates[t.id];return(
