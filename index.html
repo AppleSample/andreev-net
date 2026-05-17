@@ -1602,7 +1602,7 @@ function DailyHeatmap({sessions}){
       {/* Month labels row */}
       <div style={{display:'flex',marginLeft:36,marginBottom:4,gap:GAP}}>
         {Array.from({length:WEEKS},(_,w)=>(
-          <div key={w} style={{flex:1,fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',overflow:'visible',whiteSpace:'nowrap'}}>
+          <div key={w} style={{width:36,flexShrink:0,fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',overflow:'visible',whiteSpace:'nowrap'}}>
             {monthLabel(w)||''}
           </div>
         ))}
@@ -1611,17 +1611,16 @@ function DailyHeatmap({sessions}){
       {/* Grid row: day labels + cells */}
       <div style={{display:'flex',gap:GAP,alignItems:'stretch'}}>
         {/* Day labels */}
-        <div style={{width:32,flexShrink:0,display:'grid',gridTemplateRows:`repeat(7,1fr)`,gap:GAP}}>
+        <div style={{width:32,flexShrink:0,display:'grid',gridTemplateRows:`repeat(7,36px)`,gap:GAP}}>
           {DAYLABELS.map((lbl,i)=>(
             <div key={i} style={{display:'flex',alignItems:'center',fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',lineHeight:1}}>{lbl}</div>
           ))}
         </div>
 
-        {/* Heatmap: 9 cols × 7 rows, fills width, fixed row height */}
+        {/* Heatmap: 9 cols × 7 rows, square 36px cells */}
         <div style={{
-          flex:1,
           display:'grid',
-          gridTemplateColumns:`repeat(${WEEKS},1fr)`,
+          gridTemplateColumns:`repeat(${WEEKS},36px)`,
           gridTemplateRows:`repeat(7,36px)`,
           gridAutoFlow:'column',
           gap:GAP,
