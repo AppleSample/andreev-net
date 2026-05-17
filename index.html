@@ -144,7 +144,7 @@ const sbAPI={
     const friendIds=[...new Set((reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id))];
     const allIds=[uid,...friendIds];
     const[{data:stats},{data:profs}]=await Promise.all([
-      _sb.from('user_stats').select('*').in('user_id',allIds),
+      _sb.from('user_stats').select('*').in('user_id',allIds).order('updated_at',{ascending:false}),
       _sb.from('profiles').select('id,name').in('id',allIds),
     ]);
     const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
