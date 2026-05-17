@@ -2382,10 +2382,11 @@ function Shell({user,onLogout}){
     sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
   },[user?.id]);
 
-  // Persist events/todos to localStorage
+  // Persist events/todos/target to localStorage
   useEffect(()=>{localStorage.setItem('andreev_events',JSON.stringify(events));},[events]);
   useEffect(()=>{localStorage.setItem('andreev_todos',JSON.stringify(todos));},[todos]);
   useEffect(()=>{localStorage.setItem('andreev_todo_states',JSON.stringify(todoStates));},[todoStates]);
+  useEffect(()=>{localStorage.setItem('andreev_weekly_target',String(weeklyTarget));},[weeklyTarget]);
 
   // Sync own stats to user_stats and refresh leaderboard whenever sessions change
   useEffect(()=>{
