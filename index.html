@@ -2359,7 +2359,7 @@ function SubjectPicker({onStart,onClose,subjects=[]}){
 
 function Shell({user,onLogout}){
   const[screen,setScreen]=useState('dashboard');
-  const[weeklyTarget,setWeeklyTarget]=useState(20); // hours
+  const[weeklyTarget,setWeeklyTarget]=useState(()=>{const v=parseInt(localStorage.getItem('andreev_weekly_target'));return isNaN(v)||v<=0?20:v;});
   const[sessions,setSessions]=useState([]);
   const[sessionState,setSessionState]=useState(DEFAULT_SESSION);
   const[showPicker,setShowPicker]=useState(false);
