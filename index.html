@@ -2375,6 +2375,9 @@ function Shell({user,onLogout}){
   const[todos,setTodos]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todos')||'[]');}catch{return[];}});
   const[todoStates,setTodoStates]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todo_states')||'{}');}catch{return{};}});
 
+  // Keep ref in sync so heartbeat always sees current sessions
+  useEffect(()=>{sessionsRef.current=sessions;},[sessions]);
+
   // Load sessions + subjects + leaderboard from Supabase on mount
   useEffect(()=>{
     if(!user?.id)return;
