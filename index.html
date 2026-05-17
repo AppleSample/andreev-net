@@ -907,7 +907,7 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
                 disabled={!timerPicked&&!timerCustom.trim()}
                 onClick={()=>{if(pomOn){const w=parseInt(pomWorkDraft);const b=parseInt(pomBreakDraft);if(w>0&&b>0){setPomWork(w);setPomBreak(b);}setPomPhase('work');setPomPhaseStart(Date.now());}onStart&&onStart(timerPicked||timerCustom.trim());}}
                 style={{...Btn.md,width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:(timerPicked||timerCustom.trim())?'var(--v1-accent)':'transparent',color:(timerPicked||timerCustom.trim())?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:(timerPicked||timerCustom.trim())?'var(--v1-accent)':'var(--v1-rule)',opacity:(timerPicked||timerCustom.trim())?1:0.5}}>
-                {pomOn?'⏲ ':'▸ '}begin session{(timerPicked||timerCustom.trim())?` · ${timerPicked||timerCustom.trim()}`:''}
+                {'▸ '}begin session{(timerPicked||timerCustom.trim())?` · ${timerPicked||timerCustom.trim()}`:''}
               </button>
             </div>
           )}
