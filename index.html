@@ -1656,7 +1656,6 @@ function DailyHeatmap({sessions}){
           <div style={{fontSize:18,fontVariantNumeric:'tabular-nums',color:hov.hours>0?'var(--v1-accent)':'var(--v1-fg-muted)',fontWeight:600,letterSpacing:'-0.02em'}}>
             {hov.hours>0?fmtHM(hov.hours):'no sessions'}
           </div>
-          {hov.hours>0&&<div style={{fontSize:10,color:'var(--v1-fg-3)',marginTop:2}}>{hov.hours.toFixed(1)}h total</div>}
         </div>
       )}
     </div>
