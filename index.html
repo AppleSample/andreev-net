@@ -2416,6 +2416,12 @@ function Shell({user,onLogout}){
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[]);
+  // Always patch the "you" entry with locally-computed stats so it's never stale
+  const liveLeaderboard=React.useMemo(()=>{
+    const s=computeStats(sessions);
+    return leaderboard.map(u=>u.isYou?{...u,weekly_secs:Math.round(s.thisWkH*3600),total_secs:Math.round(s.totalH*3600),streak:s.streak}:u);
+  },[leaderboard,sessions]);
+
   const clockStr=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Madrid',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
 
   useEffect(()=>{
