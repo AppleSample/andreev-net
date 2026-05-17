@@ -1535,6 +1535,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
                   <span style={{display:'inline-flex',alignItems:'center',gap:8}}>
                     <span style={{width:7,height:7,background:u.isYou?'var(--v1-accent)':FRIEND_COLORS[i%FRIEND_COLORS.length],borderRadius:1,flexShrink:0}}/>
                     <span style={{color:u.isYou?'var(--v1-accent)':'var(--v1-fg)'}}>{u.isYou?'you':u.name}</span>
+                    {!u.isYou&&u.updated_at&&(Date.now()-new Date(u.updated_at))<5*60*1000&&<span style={{width:7,height:7,borderRadius:'50%',background:'#6BD89A',flexShrink:0}}/>}
                   </span>
                 </Cell>
                 <Cell mono right tone={u.isYou&&myRank===1&&ranked.length>1?'up':'flat'}>{fmtHM(u.wkH)}</Cell>
