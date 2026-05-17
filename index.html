@@ -1617,15 +1617,14 @@ function DailyHeatmap({sessions}){
           ))}
         </div>
 
-        {/* Heatmap: 9 cols × 7 rows, fills width, square cells via aspect-ratio */}
+        {/* Heatmap: 9 cols × 7 rows, fills width, fixed row height */}
         <div style={{
           flex:1,
           display:'grid',
           gridTemplateColumns:`repeat(${WEEKS},1fr)`,
-          gridTemplateRows:'repeat(7,1fr)',
+          gridTemplateRows:`repeat(7,14px)`,
           gridAutoFlow:'column',
           gap:GAP,
-          aspectRatio:`${WEEKS}/7`,
         }}>
           {cells.flat().map((cell,i)=>(
             <div key={i}
