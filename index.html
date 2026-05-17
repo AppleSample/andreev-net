@@ -576,7 +576,7 @@ function DashAgenda({onNav,events=[],todos=[],todoStates={},setTodoStates}){
   const todos_=todayTodos;
   if(evts.length===0&&todos_.length===0){
     return(
-      <EmptyState icon="📅" title="no events or tasks today"
+      <EmptyState icon="◈" title="no events or tasks today"
         hint="add events and todos to the calendar to see your day here"
         action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
       />
@@ -640,7 +640,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
   const next=evts.find(e=>e.time>nowStr)||evts[evts.length-1];
   if(evts.length===0&&todos_.length===0){
     return(
-      <EmptyState icon="📅" title="no events or tasks today"
+      <EmptyState icon="◈" title="no events or tasks today"
         hint="add events and todos to the calendar to see your day here"
         action={<button onClick={()=>onNav('calendar')} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-accent)',padding:'5px 14px',cursor:'pointer'}}>open calendar →</button>}
       />
