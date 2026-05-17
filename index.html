@@ -2377,6 +2377,13 @@ function Shell({user,onLogout}){
   const[filterMinProd,setFilterMinProd]=useState(0);
   const tick=useTick(1000);
 
+  // Pomodoro state lifted here so it survives tab switches
+  const[pomOn,setPomOn]=useState(false);
+  const[pomWork,setPomWork]=useState(25);
+  const[pomBreak,setPomBreak]=useState(5);
+  const[pomPhase,setPomPhase]=useState('work');
+  const[pomPhaseStart,setPomPhaseStart]=useState(null);
+
   const[subjects,setSubjects]=useState([]);
   const[leaderboard,setLeaderboard]=useState([]);
   const[events,setEvents]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_events')||'[]');}catch{return[];}});
