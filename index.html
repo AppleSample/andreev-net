@@ -2382,6 +2382,13 @@ function Shell({user,onLogout}){
     sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
   },[user?.id]);
 
+  // Prune past-day events and todos on mount
+  useEffect(()=>{
+    const todayStr=new Date().toISOString().slice(0,10);
+    setEvents(a=>a.filter(e=>e.day>=todayStr));
+    setTodos(a=>a.filter(t=>t.day>=todayStr));
+  },[]);
+
   // Persist events/todos/target to localStorage
   useEffect(()=>{localStorage.setItem('andreev_events',JSON.stringify(events));},[events]);
   useEffect(()=>{localStorage.setItem('andreev_todos',JSON.stringify(todos));},[todos]);
