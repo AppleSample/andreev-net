@@ -586,7 +586,7 @@ function DashAgenda({onNav,events=[],todos=[],todoStates={},setTodoStates}){
     <div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',border:'1px solid var(--v1-rule)'}}>
         <MiniStat k="events" v={evts.length} sub={`next ${next?next.time:'—'}`}/>
-        <MiniStat k="todos" v={`${done}/${todos_.length}`} sub={`${pct.toFixed(0)}% done`} tone={pct===100?'up':'flat'}/>
+        <MiniStat k="to-dos" v={`${done}/${todos_.length}`} sub={`${pct.toFixed(0)}% done`} tone={pct===100?'up':'flat'}/>
         <MiniStat k="focus_due" v={todos_.filter(t=>!ts[t.id]&&t.priority==='high').length} sub="high priority" tone={todos_.filter(t=>!ts[t.id]&&t.priority==='high').length>0?'down':'flat'}/>
       </div>
       {todos_.length>0&&<div style={{display:'flex',gap:3,marginTop:10,height:4}}>{todos_.map(t=><div key={t.id} style={{flex:1,background:ts[t.id]?'var(--v1-up)':'var(--v1-bg-elev-2)',transition:'background 120ms'}}/>)}</div>}
