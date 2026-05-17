@@ -1568,8 +1568,16 @@ function DailyHeatmap({sessions}){
 
   const today=new Date();today.setHours(0,0,0,0);
   const todayDow=(today.getDay()+6)%7;
-  const gridStart=new Date(today);
-  gridStart.setDate(today.getDate()-todayDow-(WEEKS-1)*7);
+  // find monday of today's week
+  const thisMonday=new Date(today);thisMonday.setDate(today.getDate()-todayDow);
+  // find monday of the week containing the earliest session
+  const dated=sessions.filter(s=>s.created_at).map(s=>{const d=new Date(s.created_at);d.setHours(0,0,0,0);return d;});
+  const firstDay=dated.length?new Date(Math.min(...dated.map(d=>d.getTime()))):thisMonday;
+  const firstDow=(firstDay.getDay()+6)%7;
+  const firstMonday=new Date(firstDay);firstMonday.setDate(firstDay.getDate()-firstDow);
+  const weeksFromFirst=Math.round((thisMonday-firstMonday)/(7*24*3600*1000))+1;
+  const WEEKS=Math.min(24,Math.max(1,weeksFromFirst));
+  const gridStart=new Date(thisMonday);gridStart.setDate(thisMonday.getDate()-(WEEKS-1)*7);
 
   // cells[week][day]
   const cells=Array.from({length:WEEKS},(_,w)=>Array.from({length:7},(_,d)=>{
