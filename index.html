@@ -1841,8 +1841,33 @@ function Heatmap({weeklyTarget,setWeeklyTarget,sessions=[],heatmap,peakHour,peak
         action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'focus',label:'FOCUS QUALITY',icon:'◰'},{id:'daily',label:'HOURS / DAY',icon:'▦'}]}/>}>
         {mode==='focus'?<FocusGrid heatmap={heatmap}/>:<DailyHeatmap sessions={sessions}/>}
       </Block>
-      <Block label="best_windows" meta="top 3 hour-of-day · last 30d">
-        <EmptyState icon="◷" title="no peak hours identified yet" hint="complete more sessions to discover your best study windows"/>
+      <Block label="productivity_by_duration" meta="avg rating by session length · rated sessions only">
+        {(()=>{
+          const prod=computeProdByDuration(sessions);
+          if(!prod||prod.length<2)return(
+            <EmptyState icon="◷" title="not enough rated sessions yet" hint="rate sessions when committing to unlock this insight"/>
+          );
+          const best=prod.reduce((a,b)=>b.avgProd>a.avgProd?b:a);
+          return(
+            <div style={{display:'flex',gap:0,border:'1px solid var(--v1-rule)',overflow:'hidden'}}>
+              {prod.map((b,i)=>{
+                const isBest=b===best;
+                const color=isBest?'var(--v1-up)':b.avgProd>=3.5?'var(--v1-accent)':'var(--v1-down)';
+                return(
+                  <div key={b.label} style={{flex:1,display:'flex',flexDirection:'column',borderRight:i<prod.length-1?'1px solid var(--v1-rule)':'none',padding:'12px 14px',gap:6,background:isBest?'rgba(79,195,127,0.06)':'transparent'}}>
+                    <div style={{fontSize:7,letterSpacing:'0.18em',color:isBest?'var(--v1-up)':'transparent',textTransform:'uppercase',fontFamily:'var(--v1-mono)',fontWeight:600}}>★ BEST</div>
+                    <div style={{fontSize:20,color,fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums',letterSpacing:'-0.02em'}}>{b.avgProd.toFixed(1)}<span style={{fontSize:9,color:'var(--v1-fg-muted)',marginLeft:2}}>/5</span></div>
+                    <div style={{height:3,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                      <div style={{position:'absolute',inset:0,width:`${(b.avgProd/5)*100}%`,background:color,transition:'width 600ms'}}/>
+                    </div>
+                    <div style={{fontSize:9,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'0.06em'}}>{b.label}</div>
+                    <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>{b.count} session{b.count!==1?'s':''}</div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </Block>
     </div>
   );
