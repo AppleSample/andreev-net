@@ -2434,7 +2434,7 @@ function Shell({user,onLogout}){
   useEffect(()=>{
     if(!user?.id||!_sb)return;
     const beat=()=>{
-      sbAPI.heartbeat(user.id).catch(()=>{});
+      sbAPI.heartbeat(user.id,sessionState.active?sessionState.subject:null).catch(()=>{});
       sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
     };
     const iv=setInterval(beat,120000);
