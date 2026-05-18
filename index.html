@@ -1526,10 +1526,11 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const myTotal=sumH(mySeries);
   const trend=mySeries.length>=2?(mySeries[mySeries.length-1]/Math.max(0.01,mySeries[0])*100-100):0;
 
-  // Pick the right metric for friends based on scope
-  const useTotal=scope==='all';
+  // Leaderboard uses its own 2-option scope since we only store weekly_secs + total_secs per friend
+  const[lbScope,setLbScope]=useState('7d');
+  const useTotal=lbScope==='all';
   const friendH=u=>useTotal?u.total_secs/3600:u.weekly_secs/3600;
-  const scopeColLabel=scopeLabel(scope);
+  const lbColLabel=useTotal?'all time':'this week';
 
   // Build ranked list — override "you" with locally-computed total
   const ranked=[...leaderboard]
