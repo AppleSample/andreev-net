@@ -802,6 +802,9 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
       ?sessionState.elapsed
       :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000))
     :0;
+  const pomCurBreak=(pomOn&&pomPhase==='break'&&pomPhaseStart&&!sessionState.paused)?Math.floor((Date.now()-pomPhaseStart)/1000):0;
+  const pomBreakTotal=pomAccBreakRef.current+pomCurBreak;
+  const focusElapsed=Math.max(0,elapsed-pomBreakTotal);
   const[rating,setRating]=useState(null);
   const[awaitRating,setAwaitRating]=useState(false);
   const[timerPicked,setTimerPicked]=useState(null);
