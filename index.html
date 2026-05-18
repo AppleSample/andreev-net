@@ -758,11 +758,29 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
 function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[],events=[],todos=[],todoStates={},setTodoStates}){
   const wkH=Math.floor(thisWkH);
   const wkM=Math.floor((thisWkH-wkH)*60);
+  const _now=new Date();
+
+  // Compact optimal window insight (for right panel)
+  const _prod=computeProdByDuration(sessions);
+  const _bestDur=_prod&&_prod.length>=2?_prod.reduce((a,b)=>b.avgProd>a.avgProd?b:a):null;
+  const _worstDur=_prod&&_prod.length>=2?_prod.reduce((a,b)=>b.avgProd<a.avgProd?b:a):null;
+
+  // Interesting insights for empty agenda
+  const _ratedSessions=sessions.filter(s=>s.productivity);
+  const _avgProd=_ratedSessions.length?(_ratedSessions.reduce((a,s)=>a+s.productivity,0)/_ratedSessions.length):null;
+  const _subjMap={};sessions.forEach(s=>{if(s.subject)_subjMap[s.subject]=(_subjMap[s.subject]||0)+sessH(s);});
+  const _topSubjEntry=Object.entries(_subjMap).sort((a,b)=>b[1]-a[1])[0];
+  const _DAYS=['mon','tue','wed','thu','fri','sat','sun'];
+  const _dyTot=Array(7).fill(0);sessions.filter(s=>s.created_at&&s.secs).forEach(s=>{const d=new Date(s.created_at);_dyTot[(d.getDay()+6)%7]+=s.secs/3600;});
+  const _peakDay=_dyTot.some(v=>v>0)?_dyTot.indexOf(Math.max(..._dyTot)):null;
+  const _hrTot=Array(24).fill(0);sessions.filter(s=>s.created_at&&s.secs).forEach(s=>{_hrTot[new Date(s.created_at).getHours()]+=s.secs/3600;});
+  const _peakHour=_hrTot.some(v=>v>0)?_hrTot.indexOf(Math.max(..._hrTot)):null;
+
   return(
     <div style={{display:'grid',gridTemplateColumns:'minmax(0,1.8fr) minmax(0,1fr)',height:'100%',overflow:'hidden'}}>
 
-      {/* COL LEFT — session hero (if active) OR hours hero + histogram + leaderboard */}
-      <section style={{borderRight:'1px solid var(--v1-rule)',overflowY:'auto',display:'flex',flexDirection:'column'}}>
+      {/* COL LEFT — no scroll */}
+      <section style={{borderRight:'1px solid var(--v1-rule)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
         {sessionState&&sessionState.active
           ? <DashSessionHero sessionState={sessionState} onNav={onNav} subjects={subjects}/>
           : <Block label="this_week.hours" meta="current week">
@@ -786,40 +804,6 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
         <Block label="last_7_days.histogram" meta="hours per day · target 3h">
           <WeekBars bars={weekBars}/>
         </Block>
-        {(()=>{
-          const prod=computeProdByDuration(sessions);
-          if(!prod||prod.length<2)return null;
-          const best=prod.reduce((a,b)=>b.avgProd>a.avgProd?b:a);
-          const worst=prod.reduce((a,b)=>b.avgProd<a.avgProd?b:a);
-          return(
-            <Block label="session.insight" meta="optimal duration · productivity analysis">
-              <div style={{display:'flex',alignItems:'center',gap:16,border:'1px solid var(--v1-rule)',padding:'10px 16px'}}>
-                <div style={{flexShrink:0}}>
-                  <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>optimal window</div>
-                  <div style={{fontSize:20,color:'var(--v1-up)',fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums',marginTop:2}}>{best.label}</div>
-                  <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:3}}>{best.avgProd.toFixed(1)}/5 avg · {best.count} sessions</div>
-                </div>
-                <div style={{width:1,alignSelf:'stretch',background:'var(--v1-rule)'}}/>
-                <div style={{flex:1,display:'flex',gap:4,alignItems:'flex-end',height:44}}>
-                  {prod.map(b=>{
-                    const isBest=b===best;
-                    return(
-                      <div key={b.label} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
-                        <div style={{width:'70%',background:isBest?'var(--v1-up)':'var(--v1-bg-elev-2)',height:`${Math.round((b.avgProd/5)*36)}px`,minHeight:2,transition:'height 300ms'}}/>
-                        <div style={{fontFamily:'var(--v1-mono)',fontSize:7,color:isBest?'var(--v1-fg)':'var(--v1-fg-3)',letterSpacing:'0.04em',textAlign:'center',whiteSpace:'nowrap'}}>{b.label}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {best!==worst&&(
-                  <div style={{fontSize:9,fontFamily:'var(--v1-mono)',color:'var(--v1-fg-muted)',flexShrink:0,lineHeight:1.6}}>
-                    <span style={{color:'var(--v1-up)',fontWeight:600}}>+{(best.avgProd-worst.avgProd).toFixed(1)} pts</span><br/>vs shortest
-                  </div>
-                )}
-              </div>
-            </Block>
-          );
-        })()}
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
           {(()=>{
             const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
@@ -828,17 +812,16 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
                 hint="invite friends to study together and compete on the leaderboard"
               />
             );
-            const me=ranked.find(u=>u.isYou);
             const myIdx=ranked.findIndex(u=>u.isYou);
             const total=ranked.length;
             let indices;
             if(myIdx<=0)indices=[0,1,2];
-            else if(myIdx>=total-1)indices=[Math.max(0,total-3),total-2<0?0:total-2,total-1];
+            else if(myIdx>=total-1)indices=[Math.max(0,total-3),Math.max(0,total-2),total-1];
             else indices=[myIdx-1,myIdx,myIdx+1];
             const rows=indices.filter(i=>i>=0&&i<total).map(i=>ranked[i]);
             return(
               <Tbl cols={['#','who','wk hrs']} widths={['28px','auto','80px']}>
-                {rows.map((u,i)=>(
+                {rows.map((u)=>(
                   <Row key={u.id} hi={u.isYou}>
                     <Cell mono dim>#{String(u.rank).padStart(2,'0')}</Cell>
                     <Cell><span style={{display:'inline-flex',alignItems:'center',gap:7}}><span style={{width:6,height:6,background:u.isYou?'var(--v1-accent)':friendColor(u.id),borderRadius:1,flexShrink:0}}/>{u.isYou?<span style={{color:'var(--v1-accent)'}}>you</span>:u.name}{!u.isYou&&u.updated_at&&(Date.now()-new Date(u.updated_at))<5*60*1000&&<span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,marginLeft:2}}/>}</span></Cell>
@@ -851,29 +834,67 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
         </Block>
       </section>
 
-      {/* COL RIGHT — studying now + compact agenda */}
-      <section style={{overflowY:'auto',display:'flex',flexDirection:'column'}}>
+      {/* COL RIGHT — no scroll, fixed panels */}
+      <section style={{overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        {/* studying now — max 3, compact */}
         {(()=>{
           const now=Date.now();
-          const online=leaderboard.filter(u=>!u.isYou&&u.updated_at&&(now-new Date(u.updated_at))<5*60*1000);
+          const online=leaderboard.filter(u=>!u.isYou&&u.updated_at&&(now-new Date(u.updated_at))<5*60*1000).slice(0,3);
           if(online.length===0)return null;
           return(
             <Block label="studying.now" meta={`${online.length} active`}>
-              {online.map(u=>(
-                <div key={u.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:'1px solid var(--v1-rule)'}}>
-                  <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 6px #6BD89A'}}/>
+              {online.map((u,i)=>(
+                <div key={u.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:i<online.length-1?'1px solid var(--v1-rule)':'none'}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 5px #6BD89A'}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)'}}>{u.name}</div>
-                    <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:u.current_subject?'var(--v1-fg-muted)':'var(--v1-fg-3)',letterSpacing:'0.08em',marginTop:1}}>{u.current_subject||'— subject unknown'}</div>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)'}}>{u.name}</span>
+                    {u.current_subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',marginLeft:8,letterSpacing:'0.06em'}}>{u.current_subject}</span>}
                   </div>
-                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.12em',color:'#6BD89A',flexShrink:0}}>● LIVE</span>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:8,letterSpacing:'0.12em',color:'#6BD89A',flexShrink:0}}>LIVE</span>
                 </div>
               ))}
             </Block>
           );
         })()}
-        <Block label="agenda.today" meta={_now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toLowerCase()} action={<Lnk onClick={()=>onNav('calendar')}>cal →</Lnk>} noBorder>
-          <DashAgenda onNav={onNav} events={events} todos={todos} todoStates={todoStates} setTodoStates={setTodoStates}/>
+
+        {/* compact optimal window insight */}
+        {_bestDur&&(
+          <div style={{borderBottom:'1px solid var(--v1-rule)',padding:'7px 16px',display:'flex',alignItems:'center',gap:10,background:'rgba(79,195,127,0.04)',flexShrink:0}}>
+            <span style={{fontSize:8,letterSpacing:'0.18em',color:'var(--v1-up)',fontFamily:'var(--v1-mono)',fontWeight:700,flexShrink:0}}>★ OPTIMAL</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',fontWeight:600,flexShrink:0}}>{_bestDur.label}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',flexShrink:0}}>{_bestDur.avgProd.toFixed(1)}/5</span>
+            {_worstDur&&_bestDur!==_worstDur&&<span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-up)',marginLeft:'auto',flexShrink:0}}>+{(_bestDur.avgProd-_worstDur.avgProd).toFixed(1)} pts vs worst</span>}
+          </div>
+        )}
+
+        {/* agenda — fills remaining space, smart empty state */}
+        <Block label="agenda.today" meta={_now.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}).toLowerCase()} action={<Lnk onClick={()=>onNav('calendar')}>cal →</Lnk>} noBorder style={{flex:1,overflow:'hidden'}}>
+          {events.length===0&&todos.filter(t=>t.day===_now.toISOString().slice(0,10)).length===0?(
+            // Smart empty state — show interesting stats instead of generic message
+            <div style={{display:'flex',flexDirection:'column',gap:0,border:'1px solid var(--v1-rule)'}}>
+              <div style={{padding:'6px 12px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',display:'flex',alignItems:'center',gap:6}}>
+                <span style={{fontSize:8,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',flex:1}}>no events today · data insights</span>
+                <button onClick={()=>onNav('calendar')} style={{...Btn.sm,fontSize:8,padding:'2px 8px'}}>+ add event</button>
+              </div>
+              {[
+                _topSubjEntry?{k:'top subject',v:_topSubjEntry[0],sub:fmtHM(_topSubjEntry[1])+' total',tone:'up'}:null,
+                _avgProd?{k:'avg productivity',v:`${_avgProd.toFixed(1)}/5`,sub:`${_ratedSessions.length} rated sessions`,tone:_avgProd>=4?'up':_avgProd>=3?'flat':'down'}:null,
+                _peakDay!=null?{k:'best day',v:_DAYS[_peakDay],sub:'most hours historically',tone:'flat'}:null,
+                _peakHour!=null?{k:'peak hour',v:`${String(_peakHour).padStart(2,'0')}:00`,sub:'highest focus historically',tone:'flat'}:null,
+                {k:'total sessions',v:String(sessions.length),sub:'all time',tone:'flat'},
+              ].filter(Boolean).slice(0,4).map((item,i,arr)=>(
+                <div key={item.k} style={{display:'grid',gridTemplateColumns:'1fr auto',alignItems:'center',padding:'7px 12px',borderBottom:i<arr.length-1?'1px solid var(--v1-rule)':'none'}}>
+                  <div>
+                    <div style={{fontSize:8,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{item.k}</div>
+                    <div style={{fontSize:13,color:item.tone==='up'?'var(--v1-up)':item.tone==='down'?'var(--v1-down)':'var(--v1-fg)',fontFamily:'var(--v1-mono)',marginTop:2,fontVariantNumeric:'tabular-nums'}}>{item.v}</div>
+                  </div>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-3)'}}>{item.sub}</span>
+                </div>
+              ))}
+            </div>
+          ):(
+            <DashAgenda onNav={onNav} events={events} todos={todos} todoStates={todoStates} setTodoStates={setTodoStates}/>
+          )}
         </Block>
       </section>
     </div>
