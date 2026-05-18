@@ -263,7 +263,9 @@ function computeStats(sessions){
   const thisWkH=sessions.reduce((a,s)=>s.created_at&&new Date(s.created_at)>=wkMon?a+sessH(s):a,0);
   const totalH=sessions.reduce((a,s)=>a+sessH(s),0);
   const keys=new Set(sessions.filter(s=>s.created_at).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}));
-  let streak=0;for(let i=0;i<365;i++){const d=new Date(n);d.setDate(n.getDate()-i);if(keys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else if(i===0){break;}else{break;}}
+  const todayKey=`${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;
+  const startI=keys.has(todayKey)?0:1;
+  let streak=0;for(let i=startI;i<365;i++){const d=new Date(n);d.setDate(n.getDate()-i);if(keys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else{break;}}
   return{thisWkH,totalH,streak};
 }
 function computeUserSeries(sessions,scope){
