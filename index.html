@@ -2813,6 +2813,9 @@ function Shell({user,onLogout}){
   const _DAYNAMES=['mon','tue','wed','thu','fri','sat','sun'];
   const _peakSub=peakHour!=null?`${String(peakHour).padStart(2,'0')}:00–${String(peakHour+1).padStart(2,'0')}:00${peakDay!=null?' · '+_DAYNAMES[peakDay]:''}`:'';
 
+  const _nowH=new Date().getHours();
+  const streakAtRisk=streak>0&&todayH===0&&_nowH>=19;
+
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
       {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)} subjects={subjects}/>}
