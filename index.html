@@ -1674,6 +1674,49 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   },[lbScope,leaderboard]);
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
 
+  // Rank climb persistence — written when rank improves within same lbScope
+  const[climbRecord,setClimbRecord]=useState(()=>{try{return JSON.parse(localStorage.getItem('rank_climb')||'null');}catch{return null;}});
+  const prevRankStateRef=useRef({lbScope:null,myRank:null});
+  useEffect(()=>{
+    const prev=prevRankStateRef.current;
+    if(prev.lbScope===lbScope&&prev.myRank!==null&&myRank<prev.myRank&&ranked.length>1){
+      const passedUser=ranked.find(u=>u.rank===myRank+1&&!u.isYou);
+      const rec={rank:myRank,prevRank:prev.myRank,at:Date.now(),passedName:passedUser?.name||null};
+      localStorage.setItem('rank_climb',JSON.stringify(rec));
+      setClimbRecord(rec);
+    }
+    prevRankStateRef.current={lbScope,myRank};
+  },[myRank,lbScope]);
+
+  // Smart rank KPI: gap to person above, threat from below, or post-climb badge
+  const myIdx=ranked.findIndex(u=>u.isYou);
+  const above=myRank>1?ranked[myIdx-1]:null;
+  const below=ranked[myIdx+1]||null;
+  const gapToAbove=above?above._scopeH-myLbTotal:0;
+  const gapFromBelow=below?myLbTotal-below._scopeH:Infinity;
+  const climbAge=climbRecord?(Date.now()-climbRecord.at)/3600000:Infinity;
+  const showClimb=climbAge<4&&climbRecord?.rank===myRank&&climbRecord?.prevRank>myRank;
+  let rankKpiK='your_rank',rankKpiSub,rankKpiTone;
+  if(ranked.length<=1){
+    rankKpiSub='add friends to rank';rankKpiTone='flat';
+  } else if(showClimb){
+    rankKpiK='rank_up';
+    const who=climbRecord.passedName?climbRecord.passedName:`#${climbRecord.prevRank}`;
+    const gapClosed=fmtHM(gapToAbove>0?gapToAbove:0);
+    rankKpiSub=`↑ #${climbRecord.prevRank}→#${myRank} · passed ${who}`;
+    rankKpiTone='up';
+  } else if(myRank===1){
+    const lead=myLbTotal-(ranked[1]?._scopeH||0);
+    rankKpiSub=lead>0.016?`+${fmtHM(lead)} over #2`:'tied with #2';
+    rankKpiTone='up';
+  } else if(gapFromBelow<0.5&&gapFromBelow<gapToAbove){
+    rankKpiSub=`⚠ #${myRank+1} is ${fmtHM(gapFromBelow)} behind`;
+    rankKpiTone='down';
+  } else {
+    rankKpiSub=`−${fmtHM(gapToAbove)} to #${myRank-1}`;
+    rankKpiTone='flat';
+  }
+
   // Build chart series: real series for you, scaled for friends using same lb boundary
   const myLbSum=Math.max(myLbTotal,0.001);
   const chartSeries=[
