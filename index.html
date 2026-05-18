@@ -1547,13 +1547,13 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
       <Block label="rank.chart" meta={`your hours · ${sc.unit} basis`}>
         <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
       </Block>
-      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ranked by this week`} noBorder>
+      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ${scopeLabel(scope)}`} noBorder>
         {ranked.length===0?(
           <EmptyState icon="◉" title="invite friends to compete"
             hint="share andreev.net with study partners — once they join, they appear here ranked by hours"
           />
         ):(
-          <Tbl cols={['#','who','wk hrs','streak','all time']} widths={['32px','auto','90px','70px','90px']}>
+          <Tbl cols={['#','who',scopeColLabel,'streak']} widths={['32px','auto','90px','70px']}>
             {ranked.map((u,i)=>(
               <Row key={u.id} hi={u.isYou}>
                 <Cell mono dim>#{String(u.rank).padStart(2,'0')}</Cell>
@@ -1566,7 +1566,6 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
                 </Cell>
                 <Cell mono right tone={u.isYou&&myRank===1&&ranked.length>1?'up':'flat'}>{fmtHM(u.wkH)}</Cell>
                 <Cell mono dim>{u.streak}d</Cell>
-                <Cell mono right dim>{fmtHM(u.total_secs/3600)}</Cell>
               </Row>
             ))}
           </Tbl>
