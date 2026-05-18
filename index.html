@@ -1553,7 +1553,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
       <Block label="rank.chart" meta={`your hours · ${sc.unit} basis`}>
         <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
       </Block>
-      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ${scopeLabel(scope)}`} noBorder>
+      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ${scopeColLabel}`} noBorder>
         {ranked.length===0?(
           <EmptyState icon="◉" title="invite friends to compete"
             hint="share andreev.net with study partners — once they join, they appear here ranked by hours"
