@@ -2609,6 +2609,35 @@ function Shell({user,onLogout}){
     prevOnlineRef.current=currentOnline;
   },[leaderboard]);
 
+  // Rank-change alert: store rank on hide, compare on return
+  useEffect(()=>{
+    if(!user?.id||!_sb)return;
+    const onVis=()=>{
+      if(document.visibilityState==='hidden'){
+        rankAtHideRef.current=myRank;
+      } else {
+        sbAPI.getLeaderboard(user.id).then(lb=>{
+          setLeaderboard(lb);
+          // comparison happens after leaderboard state updates in the effect below
+        }).catch(()=>{});
+      }
+    };
+    document.addEventListener('visibilitychange',onVis);
+    return()=>document.removeEventListener('visibilitychange',onVis);
+  },[user?.id,myRank]);
+
+  useEffect(()=>{
+    if(rankAtHideRef.current==null||!myRank)return;
+    const prev=rankAtHideRef.current;
+    if(myRank!==prev){
+      const delta=prev-myRank; // positive=improved, negative=dropped
+      setRankAlert({from:prev,to:myRank,delta});
+      rankAtHideRef.current=null;
+      const t=setTimeout(()=>setRankAlert(null),7000);
+      return()=>clearTimeout(t);
+    }
+  },[myRank]);
+
   // Always patch the "you" entry with locally-computed stats so it's never stale
   const liveLeaderboard=React.useMemo(()=>{
     const s=computeStats(sessions);
