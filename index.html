@@ -139,8 +139,9 @@ const sbAPI={
   async upsertStats(uid,stats){
     await _sb.from('user_stats').upsert({user_id:uid,weekly_secs:Math.round((stats.thisWkH||0)*3600),total_secs:Math.round((stats.totalH||0)*3600),streak:stats.streak||0,updated_at:new Date().toISOString()},{onConflict:'user_id'});
   },
-  async heartbeat(uid){
-    await _sb.from('user_stats').update({updated_at:new Date().toISOString()}).eq('user_id',uid);
+  async heartbeat(uid,subject){
+    const patch={updated_at:new Date().toISOString(),current_subject:subject||null};
+    await _sb.from('user_stats').update(patch).eq('user_id',uid);
   },
   async getLeaderboard(uid){
     const{data:reqs}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
