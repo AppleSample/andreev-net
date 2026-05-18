@@ -161,7 +161,11 @@ const sbAPI={
       const prev=best.get(s.user_id);
       if(!prev||(s.updated_at&&(!prev.updated_at||s.updated_at>prev.updated_at)))best.set(s.user_id,s);
     }
-    return allIds.filter(id=>best.has(id)).map(id=>{const s=best.get(id);return{id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0,updated_at:s.updated_at||null,current_subject:s.current_subject||null};});
+    // Include all friends even if they have no user_stats row yet (show 0 hours)
+    return allIds.map(id=>{
+      const s=best.get(id);
+      return{id,name:nameMap[id]||'unknown',isYou:id===uid,weekly_secs:s?.weekly_secs||0,total_secs:s?.total_secs||0,streak:s?.streak||0,updated_at:s?.updated_at||null,current_subject:s?.current_subject||null};
+    });
   },
   async removeFriend(uid,friendId){
     await _sb.from('friend_requests').delete().or(`and(from_id.eq.${uid},to_id.eq.${friendId}),and(from_id.eq.${friendId},to_id.eq.${uid})`);
