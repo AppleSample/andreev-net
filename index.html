@@ -2530,6 +2530,7 @@ function Shell({user,onLogout}){
     setShowPicker(false);
     setSessionState({active:true,subject:subj,startedAt:Date.now(),elapsed:0,paused:false,breakSecs:0,pausedAt:null});
     setScreen('timer');
+    if(user?.id)sbAPI.heartbeat(user.id,subj).catch(()=>{});
   };
 
   const handlePause=()=>{
