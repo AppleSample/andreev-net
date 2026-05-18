@@ -1532,14 +1532,18 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const friendH=u=>useTotal?u.total_secs/3600:u.weekly_secs/3600;
   const lbColLabel=useTotal?'all time':'this week';
 
-  // Build ranked list — override "you" with locally-computed total
+  // Leaderboard "you" total uses lbScope for an apples-to-apples comparison with friends
+  const myLbSeries=computeUserSeries(sessions,lbScope);
+  const myLbTotal=sumH(myLbSeries);
+
+  // Build ranked list — override "you" with locally-computed lb-scope total
   const ranked=[...leaderboard]
-    .map(u=>u.isYou?{...u,_scopeH:myTotal}:{...u,_scopeH:friendH(u)})
+    .map(u=>u.isYou?{...u,_scopeH:myLbTotal}:{...u,_scopeH:friendH(u)})
     .sort((a,b)=>b._scopeH-a._scopeH)
     .map((u,i)=>({...u,rank:i+1,wkH:u._scopeH}));
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
 
-  // Build chart series: real series for you, approximated for friends
+  // Build chart series: real series for you, approximated for friends (chart scope, not lb scope)
   const myWkSum=mySeries.reduce((a,v)=>a+v,0)||0.001;
   const chartSeries=[
     {name:'you',color:'var(--v1-accent)',values:mySeries,fillFirst:true},
@@ -1549,12 +1553,20 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
     }),
   ];
 
+  const lbToggle=(
+    <div style={{display:'flex',gap:0}}>
+      {['7d','all'].map(s=>{const a=lbScope===s;return(
+        <button key={s} onClick={()=>setLbScope(s)} style={{fontFamily:'var(--v1-mono)',fontSize:10,background:a?'var(--v1-accent)':'transparent',color:a?'var(--v1-bg)':'var(--v1-fg-3)',border:'none',padding:'5px 10px',cursor:'pointer',letterSpacing:'0.12em',fontWeight:a?600:500}}>{s==='7d'?'WEEK':'ALL TIME'}</button>
+      );})}
+    </div>
+  );
+
   return(
     <div>
-      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta={`ranked by ${scopeColLabel}`} action={<ScopePicker scope={scope} onScope={setScope}/>}>
+      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta={`your hours · ${sc.unit} basis`} action={<ScopePicker scope={scope} onScope={setScope}/>}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
           <KPI k="your_rank" v={ranked.length>1?`#${myRank}`:'solo'} sub={ranked.length>1?`of ${ranked.length}`:'add friends to rank'} tone={myRank===1&&ranked.length>1?'up':'flat'}/>
-          <KPI k={scopeColLabel} v={fmtHM(myTotal)} sub={`${(myTotal/sc.n).toFixed(2)}h / ${sc.unit}`} tone={myTotal>0?'up':'flat'}/>
+          <KPI k={scopeLabel(scope)} v={fmtHM(myTotal)} sub={`${(myTotal/sc.n).toFixed(2)}h / ${sc.unit}`} tone={myTotal>0?'up':'flat'}/>
           <KPI k="streak" v={`${streak}d`} sub={streak>0?'keep it up':'start today'} tone={streak>0?'up':'flat'}/>
           <KPI k="trend" v={`${trend>=0?'+':''}${trend.toFixed(0)}%`} sub="end vs start" tone={trend>=0?'up':'down'}/>
         </div>
@@ -1562,13 +1574,13 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
       <Block label="rank.chart" meta={`your hours · ${sc.unit} basis`}>
         <BigChart series={chartSeries} scope={scope} height={240} fillFirst yLabel="h"/>
       </Block>
-      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ${scopeColLabel}`} noBorder>
+      <Block label="rank.leaderboard" meta={`${Math.max(1,ranked.length)} member${ranked.length!==1?'s':''} · ${lbColLabel}`} noBorder action={lbToggle}>
         {ranked.length===0?(
           <EmptyState icon="◉" title="invite friends to compete"
             hint="share andreev.net with study partners — once they join, they appear here ranked by hours"
           />
         ):(
-          <Tbl cols={['#','who',scopeColLabel,'streak']} widths={['32px','auto','90px','70px']}>
+          <Tbl cols={['#','who',lbColLabel,'streak']} widths={['32px','auto','90px','70px']}>
             {ranked.map((u,i)=>(
               <Row key={u.id} hi={u.isYou}>
                 <Cell mono dim>#{String(u.rank).padStart(2,'0')}</Cell>
