@@ -2445,6 +2445,74 @@ const TABS=[
 ];
 
 const DEFAULT_SESSION={active:false,subject:'',startedAt:0,elapsed:0,paused:false,breakSecs:0,pausedAt:null};
+
+function ShareCard({user,thisWkH,totalH,streak,myRank,totalUsers,sessions=[],subjects=[],onClose}){
+  const[copied,setCopied]=useState(false);
+  const topSubj=React.useMemo(()=>{
+    const m={};sessions.forEach(s=>{if(s.subject)m[s.subject]=(m[s.subject]||0)+sessH(s);});
+    const top=Object.entries(m).sort((a,b)=>b[1]-a[1])[0];
+    return top?{name:top[0],h:top[1]}:null;
+  },[sessions]);
+  const avgProd=React.useMemo(()=>{
+    const rated=sessions.filter(s=>s.productivity);
+    return rated.length?rated.reduce((a,s)=>a+s.productivity,0)/rated.length:null;
+  },[sessions]);
+  const weekBars=[0,1,2,3,4,5,6].map(i=>{
+    const now=new Date();const dow=(now.getDay()+6)%7;const wkMon=new Date(now);wkMon.setDate(now.getDate()-dow);wkMon.setHours(0,0,0,0);
+    const d=new Date(wkMon);d.setDate(wkMon.getDate()+i);const de=new Date(d);de.setDate(d.getDate()+1);
+    return sessions.filter(s=>{if(!s.created_at)return false;const sd=new Date(s.created_at);return sd>=d&&sd<de;}).reduce((a,s)=>a+sessH(s),0);
+  });
+  const maxBar=Math.max(...weekBars,0.01);
+  const textCard=`andreev.net · ${(user?.name||'').toUpperCase()}
+━━━━━━━━━━━━━━━━━━━━━━
+WK HOURS  ${fmtHM(thisWkH)}
+TOTAL     ${fmtHM(totalH)}
+STREAK    ${streak}d${myRank?`\nRANK      #${myRank} of ${totalUsers}`:''}${topSubj?`\nTOP SUBJ  ${topSubj.name} · ${fmtHM(topSubj.h)}`:''}
+━━━━━━━━━━━━━━━━━━━━━━
+andreev.net`;
+  const copyText=()=>{navigator.clipboard.writeText(textCard).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});};
+  return(
+    <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.85)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:380,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)',display:'flex',flexDirection:'column'}}>
+        {/* header */}
+        <div style={{display:'flex',alignItems:'center',padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev-2)'}}>
+          <span style={{fontSize:9,letterSpacing:'0.2em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',flex:1}}>progress card · share</span>
+          <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕</button>
+        </div>
+        {/* card preview */}
+        <div style={{margin:20,background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',padding:'20px 24px',fontFamily:'var(--v1-mono)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:16}}>
+            <span style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-accent)',fontWeight:700}}>ANDREEV.NET</span>
+            <span style={{flex:1,height:1,background:'var(--v1-rule)'}}/>
+            <span style={{fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em'}}>{new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}).toUpperCase()}</span>
+          </div>
+          <div style={{fontSize:18,color:'var(--v1-fg)',letterSpacing:'0.04em',marginBottom:16,fontWeight:600}}>{user?.name?.toUpperCase()||'YOU'}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+            {[['WK HOURS',fmtHM(thisWkH),'var(--v1-accent)'],['TOTAL',fmtHM(totalH),'var(--v1-fg)'],['STREAK',`${streak}d`,'var(--v1-up)'],myRank?['RANK',`#${myRank} / ${totalUsers}`,'var(--v1-fg)']:['AVG PROD',avgProd?`${avgProd.toFixed(1)}/5`:'—','var(--v1-fg)']].map(([k,v,c])=>(
+              <div key={k}>
+                <div style={{fontSize:7,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:3}}>{k}</div>
+                <div style={{fontSize:16,color:c,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {topSubj&&<div style={{fontSize:9,color:'var(--v1-fg-muted)',marginBottom:12,letterSpacing:'0.06em'}}>TOP SUBJECT · <span style={{color:'var(--v1-fg)'}}>{topSubj.name.toUpperCase()} · {fmtHM(topSubj.h)}</span></div>}
+          {/* week bars */}
+          <div style={{display:'flex',gap:3,alignItems:'flex-end',height:28,marginTop:8}}>
+            {weekBars.map((h,i)=>{const isToday=(new Date().getDay()+6)%7===i;return(<div key={i} style={{flex:1,background:isToday?'var(--v1-accent)':h>0?'var(--v1-bg-elev-2)':'var(--v1-rule)',height:`${Math.max(4,(h/maxBar)*28)}px`,borderRadius:1,opacity:isToday?1:h>0?0.7:0.3}}/>);})}</div>
+          <div style={{display:'flex',justifyContent:'space-between',marginTop:3}}>
+            {['M','T','W','T','F','S','S'].map((d,i)=><span key={i} style={{fontSize:6,color:'var(--v1-fg-3)',letterSpacing:'0.04em'}}>{d}</span>)}
+          </div>
+        </div>
+        {/* actions */}
+        <div style={{display:'flex',gap:8,padding:'0 20px 20px'}}>
+          <button onClick={copyText} style={{flex:1,...Btn.md,background:copied?'var(--v1-up)':'var(--v1-accent)',color:'var(--v1-bg)',borderColor:copied?'var(--v1-up)':'var(--v1-accent)',justifyContent:'center',display:'flex',gap:8}}>{copied?'✓ copied':'⎘ copy text card'}</button>
+          <div style={{fontSize:8,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',alignSelf:'center',lineHeight:1.5}}>screenshot<br/>to share image</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SubjectPicker({onStart,onClose,subjects=[]}){
   const[custom,setCustom]=useState('');
   const[picked,setPicked]=useState(null);
