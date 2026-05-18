@@ -169,7 +169,50 @@ const sbAPI={
   },
   async removeFriend(uid,friendId){
     await _sb.from('friend_requests').delete().or(`and(from_id.eq.${uid},to_id.eq.${friendId}),and(from_id.eq.${friendId},to_id.eq.${uid})`);
-  }
+  },
+  async createGroup(uid,name){
+    const code=Math.random().toString(36).slice(2,10).toUpperCase();
+    const{data,error}=await _sb.from('study_groups').insert({name,owner_id:uid,invite_code:code}).select().single();
+    if(error||!data)return{error:error?.message||'failed'};
+    await _sb.from('group_members').insert({group_id:data.id,user_id:uid});
+    return{ok:true,group:data};
+  },
+  async joinGroup(uid,code){
+    const{data:g}=await _sb.from('study_groups').select('id,name').eq('invite_code',code.toUpperCase().trim()).single();
+    if(!g)return{error:'invite code not found'};
+    const{error}=await _sb.from('group_members').insert({group_id:g.id,user_id:uid});
+    if(error)return{error:error.message.includes('duplicate')?'already a member':error.message};
+    return{ok:true,group:g};
+  },
+  async getMyGroups(uid){
+    const{data:memberships}=await _sb.from('group_members').select('group_id').eq('user_id',uid);
+    if(!memberships?.length)return[];
+    const gids=memberships.map(m=>m.group_id);
+    const{data:groups}=await _sb.from('study_groups').select('id,name,owner_id,invite_code').in('id',gids);
+    if(!groups?.length)return[];
+    const{data:allMembers}=await _sb.from('group_members').select('group_id,user_id').in('group_id',gids);
+    const memberIds=[...new Set((allMembers||[]).map(m=>m.user_id))];
+    const{data:profiles}=await _sb.from('profiles').select('id,name').in('id',memberIds);
+    const{data:stats}=await _sb.from('user_stats').select('*').in('user_id',memberIds);
+    const profileMap=Object.fromEntries((profiles||[]).map(p=>[p.id,p]));
+    const statsMap=Object.fromEntries((stats||[]).map(s=>[s.user_id,s]));
+    return groups.map(g=>({
+      ...g,
+      isOwner:g.owner_id===uid,
+      members:(allMembers||[]).filter(m=>m.group_id===g.id).map(m=>({
+        id:m.user_id,
+        name:profileMap[m.user_id]?.name||'unknown',
+        isYou:m.user_id===uid,
+        weekly_secs:statsMap[m.user_id]?.weekly_secs||0,
+        total_secs:statsMap[m.user_id]?.total_secs||0,
+        streak:statsMap[m.user_id]?.streak||0,
+        updated_at:statsMap[m.user_id]?.updated_at||null,
+      })),
+    }));
+  },
+  async leaveGroup(uid,groupId){
+    await _sb.from('group_members').delete().eq('group_id',groupId).eq('user_id',uid);
+  },
 };
 
 /* ══════════════════════════════════════════════════════════════
