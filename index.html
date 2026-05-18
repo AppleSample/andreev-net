@@ -2121,7 +2121,7 @@ function friendColor(id){let h=0;for(let i=0;i<(id||'').length;i++)h=(h*31+id.ch
 function getFriendData(uid){try{return JSON.parse(localStorage.getItem('andreev_fd_'+uid)||'{"friends":[],"requests":[]}')}catch{return{friends:[],requests:[]};}}
 function setFriendData(uid,d){localStorage.setItem('andreev_fd_'+uid,JSON.stringify(d));}
 
-function Friend({user}){
+function Friend({user,leaderboard=[]}){
   const uid=user?.id;
   const[friends,setFriends]=useState([]);
   const[requests,setRequests]=useState([]);
