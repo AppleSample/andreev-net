@@ -838,12 +838,12 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
   },[tick]);
 
   const togglePom=()=>{
-    if(!pomOn){setPomPhase('work');setPomPhaseStart(Date.now());}
+    if(!pomOn){setPomPhase('work');setPomPhaseStart(Date.now());pomAccBreakRef.current=0;}
     setPomOn(p=>!p);
   };
   const applyPomSettings=()=>{
     const w=parseInt(pomWorkDraft);const b=parseInt(pomBreakDraft);
-    if(w>0&&b>0){setPomWork(w);setPomBreak(b);setPomPhase('work');setPomPhaseStart(Date.now());}
+    if(w>0&&b>0){setPomWork(w);setPomBreak(b);setPomPhase('work');setPomPhaseStart(Date.now());pomAccBreakRef.current=0;}
     setEditingPom(false);
   };
 
