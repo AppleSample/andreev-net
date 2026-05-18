@@ -1543,11 +1543,15 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const _lbStats=computeStats(sessions);
   const myLbTotal=useTotal?_lbStats.totalH:_lbStats.thisWkH;
 
-  // Build ranked list — override "you" with locally-computed lb-scope total
+  // Track previous ranks to compute movement
+  const prevRanksRef=useRef({});
   const ranked=[...leaderboard]
     .map(u=>u.isYou?{...u,_scopeH:myLbTotal}:{...u,_scopeH:friendH(u)})
     .sort((a,b)=>b._scopeH-a._scopeH)
-    .map((u,i)=>({...u,rank:i+1,wkH:u._scopeH}));
+    .map((u,i)=>({...u,rank:i+1,wkH:u._scopeH,rankDelta:prevRanksRef.current[u.id]!=null?prevRanksRef.current[u.id]-(i+1):null}));
+  useEffect(()=>{
+    const m={};ranked.forEach(u=>{m[u.id]=u.rank;});prevRanksRef.current=m;
+  },[lbScope,leaderboard]);
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
 
   // Build chart series: real series for you, approximated for friends (chart scope, not lb scope)
