@@ -2906,6 +2906,15 @@ function Shell({user,onLogout}){
         })}
       </div>
 
+      {/* STREAK AT RISK */}
+      {streakAtRisk&&(
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'5px 16px',background:'rgba(239,68,68,0.07)',borderBottom:'1px solid var(--v1-down)',flexShrink:0}}>
+          <span style={{fontSize:9,letterSpacing:'0.2em',color:'var(--v1-down)',fontFamily:'var(--v1-mono)',fontWeight:700}}>▲ STREAK AT RISK</span>
+          <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.08em'}}>{streak}d streak · 0h logged today · {23-_nowH}h remaining</span>
+          <button onClick={()=>setScreen('timer')} style={{marginLeft:'auto',...Btn.sm,fontSize:8,padding:'2px 10px',color:'var(--v1-down)',borderColor:'var(--v1-down)'}}>begin session →</button>
+        </div>
+      )}
+
       {/* MAIN */}
       <main style={{flex:1,overflow:'hidden',padding:0,position:'relative',display:'flex',flexDirection:'column'}}>
         {screen==='dashboard'&&<Dashboard onNav={setScreen} sessions={sessions} sessionState={sessionState} subjects={subjects} weekBars={weekBars} thisWkH={thisWkH} leaderboard={liveLeaderboard} events={events} todos={todos} todoStates={todoStates} setTodoStates={setTodoStates}/>}
