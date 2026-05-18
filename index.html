@@ -2426,6 +2426,7 @@ function Shell({user,onLogout}){
 
   // Keep ref in sync so heartbeat always sees current sessions
   useEffect(()=>{sessionsRef.current=sessions;},[sessions]);
+  useEffect(()=>{sessionStateRef.current=sessionState;},[sessionState]);
 
   // Load sessions + subjects + leaderboard from Supabase on mount
   useEffect(()=>{
