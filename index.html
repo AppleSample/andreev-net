@@ -3249,7 +3249,7 @@ function Shell({user,onLogout}){
         {screen==='heatmap'&&<div style={{overflowY:'auto',flex:1}}><Heatmap weeklyTarget={weeklyTarget} setWeeklyTarget={setWeeklyTarget} sessions={sessions} heatmap={heatmap} peakHour={peakHour} peakDay={peakDay} activeDays30={activeDays30} thisWkH={thisWkH}/></div>}
         {screen==='subjects'&&<div style={{overflowY:'auto',flex:1}}><Subjects user={user} subjects={subjects} setSubjects={setSubjects} sessions={sessions}/></div>}
         {screen==='log'&&<div style={{overflowY:'auto',flex:1}}><Log sessions={sessions} filterSubjects={filterSubjects} filterMinProd={filterMinProd}/></div>}
-        {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend user={user}/></div>}
+        {screen==='friend'&&<div style={{overflowY:'auto',flex:1}}><Friend user={user} leaderboard={liveLeaderboard}/></div>}
         {screen==='squad'&&<div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}><Squad user={user}/></div>}
       </main>
 
