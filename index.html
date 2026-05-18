@@ -825,7 +825,6 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
   const[editingPom,setEditingPom]=useState(false);
   const[pomWorkDraft,setPomWorkDraft]=useState(String(pomWork));
   const[pomBreakDraft,setPomBreakDraft]=useState(String(pomBreak));
-  const pomAccBreakRef=useRef(0); // accumulated completed pom-break seconds
 
   // auto phase-switch
   useEffect(()=>{
