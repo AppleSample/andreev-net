@@ -2239,7 +2239,7 @@ function AuthScreen({onAuth}){
     const res=await sbAPI.signIn(email,password);
     setLoading(false);
     if(res.error){setError('incorrect username or password');return;}
-    onAuth(res.user);
+    onAuth(res.user,username.trim(),password);
   };
 
   const doSignUp=async e=>{
