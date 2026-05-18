@@ -2451,6 +2451,22 @@ function Shell({user,onLogout}){
     const h=e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();setShowFilter(f=>!f);}};
     window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);
   },[]);
+  // Detect friends coming online
+  useEffect(()=>{
+    const now=Date.now();
+    const currentOnline=new Set(
+      leaderboard.filter(u=>!u.isYou&&u.updated_at&&(now-new Date(u.updated_at))<5*60*1000).map(u=>u.id)
+    );
+    const newlyOnline=leaderboard.filter(u=>currentOnline.has(u.id)&&!prevOnlineRef.current.has(u.id));
+    if(newlyOnline.length>0&&prevOnlineRef.current.size>0){
+      const u=newlyOnline[0];
+      setOnlineAlert({name:u.name,subject:u.current_subject||null});
+      const t=setTimeout(()=>setOnlineAlert(null),5000);
+      return()=>clearTimeout(t);
+    }
+    prevOnlineRef.current=currentOnline;
+  },[leaderboard]);
+
   // Always patch the "you" entry with locally-computed stats so it's never stale
   const liveLeaderboard=React.useMemo(()=>{
     const s=computeStats(sessions);
