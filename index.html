@@ -2817,17 +2817,42 @@ function Shell({user,onLogout}){
       {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)} subjects={subjects}/>}
       {showFilter&&<FilterPanel subjects={sessions} onClose={()=>setShowFilter(false)} filterSubjects={filterSubjects} setFilterSubjects={setFilterSubjects} filterMinProd={filterMinProd} setFilterMinProd={setFilterMinProd} onNav={setScreen}/>}
 
-      {/* ONLINE ALERT POPUP */}
-      {onlineAlert&&(
-        <div style={{position:'fixed',top:52,left:'50%',transform:'translateX(-50%)',zIndex:9999,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',padding:'8px 16px',display:'flex',alignItems:'center',gap:12,pointerEvents:'none',boxShadow:'0 4px 24px rgba(0,0,0,0.5)'}}>
-          <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 6px #6BD89A',display:'inline-block'}}/>
-          <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
-            <span style={{color:'var(--v1-fg-muted)',fontSize:9,letterSpacing:'0.12em',marginRight:8}}>● ONLINE</span>
-            <span style={{fontWeight:600}}>{onlineAlert.name.toUpperCase()}</span>
-            {onlineAlert.subject&&<span style={{color:'var(--v1-fg-muted)',marginLeft:8,fontSize:9,letterSpacing:'0.08em'}}>{onlineAlert.subject.toUpperCase()}</span>}
+      {/* BLOOMBERG NOTIFICATION STACK */}
+      {(()=>{
+        const toastStyle={position:'fixed',left:'50%',transform:'translateX(-50%)',zIndex:9999,background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',padding:'8px 16px',display:'flex',alignItems:'center',gap:12,pointerEvents:'none',boxShadow:'0 4px 24px rgba(0,0,0,0.5)',whiteSpace:'nowrap'};
+        const toasts=[];
+        if(onlineAlert)toasts.push(
+          <div key="online" style={{...toastStyle,top:52}}>
+            <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 6px #6BD89A'}}/>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
+              <span style={{color:'var(--v1-fg-muted)',fontSize:9,letterSpacing:'0.12em',marginRight:8}}>● ONLINE</span>
+              <span style={{fontWeight:600}}>{onlineAlert.name.toUpperCase()}</span>
+              {onlineAlert.subject&&<span style={{color:'var(--v1-fg-muted)',marginLeft:8,fontSize:9,letterSpacing:'0.08em'}}>{onlineAlert.subject.toUpperCase()}</span>}
+            </div>
           </div>
-        </div>
-      )}
+        );
+        if(friendReqAlert)toasts.push(
+          <div key="freq" style={{...toastStyle,top:52+(onlineAlert?44:0)}}>
+            <span style={{fontSize:11,color:'var(--v1-accent)',flexShrink:0}}>◈</span>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
+              <span style={{color:'var(--v1-fg-muted)',fontSize:9,letterSpacing:'0.12em',marginRight:8}}>NETWORK REQUEST</span>
+              {friendReqAlert.fromName?<span style={{fontWeight:600}}>{friendReqAlert.fromName.toUpperCase()}</span>:<span style={{fontWeight:600}}>{friendReqAlert.count} NEW</span>}
+              <span style={{color:'var(--v1-fg-muted)',marginLeft:8,fontSize:9}}> wants to connect · check network tab</span>
+            </div>
+          </div>
+        );
+        if(rankAlert)toasts.push(
+          <div key="rank" style={{...toastStyle,top:52+(onlineAlert?44:0)+(friendReqAlert?44:0)}}>
+            <span style={{fontSize:11,color:rankAlert.delta>0?'var(--v1-up)':'var(--v1-down)',flexShrink:0}}>{rankAlert.delta>0?'▲':'▼'}</span>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
+              <span style={{color:'var(--v1-fg-muted)',fontSize:9,letterSpacing:'0.12em',marginRight:8}}>RANK CHANGE</span>
+              <span style={{color:rankAlert.delta>0?'var(--v1-up)':'var(--v1-down)',fontWeight:600}}>#{rankAlert.from} → #{rankAlert.to}</span>
+              <span style={{color:'var(--v1-fg-muted)',marginLeft:8,fontSize:9}}>{rankAlert.delta>0?`+${rankAlert.delta} positions while away`:`${Math.abs(rankAlert.delta)} positions lost while away`}</span>
+            </div>
+          </div>
+        );
+        return toasts;
+      })()}
 
       {/* TOP RAIL */}
       <header style={{display:'grid',gridTemplateColumns:'auto 1fr auto auto auto',alignItems:'center',gap:16,padding:'0 16px',height:40,flexShrink:0,background:'var(--v1-bg)',borderBottom:'1px solid var(--v1-rule)'}}>
