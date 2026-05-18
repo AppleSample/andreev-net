@@ -2577,7 +2577,8 @@ function Shell({user,onLogout}){
 
   const paceVal=Math.round((thisWkH/weeklyTarget)*100);
   const paceTone=paceVal>=100?'up':paceVal>=50?'flat':'down';
-  const _todayDow=(_now.getDay()+6)%7; // Mon=0, Sun=6
+  const _liveNow=new Date();
+  const _todayDow=(_liveNow.getDay()+6)%7; // Mon=0, Sun=6
   const _daysLeft=Math.max(1,7-_todayDow);
   const _hNeeded=Math.max(0,weeklyTarget-thisWkH);
   const _paceDesc=paceVal>=100?`+${(thisWkH-weeklyTarget).toFixed(1)}h · target met`:_daysLeft===1?`${_hNeeded.toFixed(1)}h needed today`:`${(_hNeeded/_daysLeft).toFixed(1)}h/day · ${_daysLeft}d left`;
