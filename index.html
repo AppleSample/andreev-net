@@ -743,6 +743,40 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
         <Block label="last_7_days.histogram" meta="hours per day · target 3h">
           <WeekBars bars={weekBars}/>
         </Block>
+        {(()=>{
+          const prod=computeProdByDuration(sessions);
+          if(!prod||prod.length<2)return null;
+          const best=prod.reduce((a,b)=>b.avgProd>a.avgProd?b:a);
+          const worst=prod.reduce((a,b)=>b.avgProd<a.avgProd?b:a);
+          return(
+            <Block label="session.insight" meta="optimal duration · productivity analysis">
+              <div style={{display:'flex',alignItems:'center',gap:16,border:'1px solid var(--v1-rule)',padding:'10px 16px'}}>
+                <div style={{flexShrink:0}}>
+                  <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>optimal window</div>
+                  <div style={{fontSize:20,color:'var(--v1-up)',fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums',marginTop:2}}>{best.label}</div>
+                  <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:3}}>{best.avgProd.toFixed(1)}/5 avg · {best.count} sessions</div>
+                </div>
+                <div style={{width:1,alignSelf:'stretch',background:'var(--v1-rule)'}}/>
+                <div style={{flex:1,display:'flex',gap:4,alignItems:'flex-end',height:44}}>
+                  {prod.map(b=>{
+                    const isBest=b===best;
+                    return(
+                      <div key={b.label} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                        <div style={{width:'70%',background:isBest?'var(--v1-up)':'var(--v1-bg-elev-2)',height:`${Math.round((b.avgProd/5)*36)}px`,minHeight:2,transition:'height 300ms'}}/>
+                        <div style={{fontFamily:'var(--v1-mono)',fontSize:7,color:isBest?'var(--v1-fg)':'var(--v1-fg-3)',letterSpacing:'0.04em',textAlign:'center',whiteSpace:'nowrap'}}>{b.label}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {best!==worst&&(
+                  <div style={{fontSize:9,fontFamily:'var(--v1-mono)',color:'var(--v1-fg-muted)',flexShrink:0,lineHeight:1.6}}>
+                    <span style={{color:'var(--v1-up)',fontWeight:600}}>+{(best.avgProd-worst.avgProd).toFixed(1)} pts</span><br/>vs shortest
+                  </div>
+                )}
+              </div>
+            </Block>
+          );
+        })()}
         <Block label="leaderboard.week" meta="ranked by hours" action={<Lnk onClick={()=>onNav('leader')}>full →</Lnk>} noBorder>
           {(()=>{
             const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
