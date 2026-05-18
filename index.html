@@ -2790,6 +2790,7 @@ function Shell({user,onLogout}){
   const _sortedLb=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs);
   const myRankPos=_sortedLb.findIndex(u=>u.isYou);
   const myRank=myRankPos>=0?myRankPos+1:leaderboard.length>0?leaderboard.length+1:null;
+  myRankRef.current=myRank; // keep ref in sync for visibilitychange handler
 
   // Status strip analytics
   const _dailyTarget=weeklyTarget/7;
