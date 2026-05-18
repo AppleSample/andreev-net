@@ -1512,9 +1512,16 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const myTotal=sumH(mySeries);
   const trend=mySeries.length>=2?(mySeries[mySeries.length-1]/Math.max(0.01,mySeries[0])*100-100):0;
 
-  // Build ranked list from leaderboard (includes you + friends with real stats)
-  const ranked=[...leaderboard].sort((a,b)=>b.weekly_secs-a.weekly_secs).map((u,i)=>({...u,rank:i+1,wkH:u.weekly_secs/3600}));
-  const me=ranked.find(u=>u.isYou)||{id:user?.id,name:'you',isYou:true,wkH:myTotal,weekly_secs:myTotal*3600,streak,rank:1};
+  // Pick the right metric for friends based on scope
+  const useTotal=scope==='all';
+  const friendH=u=>useTotal?u.total_secs/3600:u.weekly_secs/3600;
+  const scopeColLabel=useTotal?'all time':'this week';
+
+  // Build ranked list — override "you" with locally-computed total
+  const ranked=[...leaderboard]
+    .map(u=>u.isYou?{...u,_scopeH:myTotal}:{...u,_scopeH:friendH(u)})
+    .sort((a,b)=>b._scopeH-a._scopeH)
+    .map((u,i)=>({...u,rank:i+1,wkH:u._scopeH}));
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
 
   // Build chart series: real series for you, approximated for friends
@@ -1522,8 +1529,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const chartSeries=[
     {name:'you',color:'var(--v1-accent)',values:mySeries,fillFirst:true},
     ...ranked.filter(u=>!u.isYou).map((u,i)=>{
-      const friendWk=u.weekly_secs/3600;
-      const ratio=friendWk/myWkSum;
+      const ratio=u._scopeH/myWkSum;
       return{name:u.name,color:FRIEND_COLORS[i%FRIEND_COLORS.length],values:mySeries.map(v=>v*ratio),dim:true};
     }),
   ];
