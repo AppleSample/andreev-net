@@ -1532,9 +1532,12 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   const friendH=u=>useTotal?u.total_secs/3600:u.weekly_secs/3600;
   const lbColLabel=useTotal?'all time':'this week';
 
-  // Leaderboard "you" total uses lbScope for an apples-to-apples comparison with friends
-  const myLbSeries=computeUserSeries(sessions,lbScope);
-  const myLbTotal=sumH(myLbSeries);
+  // Leaderboard "you" total must use the same boundaries as friends' stored stats:
+  //   weekly_secs = Monday-midnight-based week (from computeStats)
+  //   total_secs  = all-time sum
+  // computeUserSeries('7d') uses a rolling 7-day window — wrong for leaderboard comparison.
+  const _lbStats=computeStats(sessions);
+  const myLbTotal=useTotal?_lbStats.totalH:_lbStats.thisWkH;
 
   // Build ranked list — override "you" with locally-computed lb-scope total
   const ranked=[...leaderboard]
