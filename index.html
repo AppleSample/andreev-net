@@ -1030,7 +1030,7 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
         {sessionState.paused?'PAUSED':'SESSION ACTIVE'} — {sessionState.subject}
       </div>
       <div style={{fontSize:160,lineHeight:0.88,letterSpacing:'-0.06em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)',display:'flex',alignItems:'baseline'}}>
-        <span style={{fontFamily:'var(--v1-mono)',fontSize:160,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.04em'}}>{fmtClock(elapsed)}</span>
+        <span style={{fontFamily:'var(--v1-mono)',fontSize:160,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.04em'}}>{fmtClock(focusElapsed)}</span>
         {!sessionState.paused&&<Cursor size="0.45em" color="var(--v1-accent)"/>}
       </div>
       {(()=>{
