@@ -2073,11 +2073,46 @@ function Subjects({user,subjects=[],setSubjects,sessions=[]}){
             </div>
           </Block>
           <Block label="subjects.viz" meta={`mode: ${mode}`}
-            action={<ModePicker mode={mode} onMode={setMode} modes={[{id:'donut',label:'DONUT',icon:'◯'},{id:'bars',label:'BARS',icon:'▤'},{id:'area',label:'OVER TIME',icon:'▲'}]}/>}>
+            action={<ModePicker mode={mode} onMode={m=>{setMode(m);if(m==='trend'&&!trendSubj&&scoped.length>0)setTrendSubj(scoped[0].name);}} modes={[{id:'donut',label:'DONUT',icon:'◯'},{id:'bars',label:'BARS',icon:'▤'},{id:'area',label:'OVER TIME',icon:'▲'},{id:'trend',label:'TREND',icon:'◈'}]}/>}>
             {mode==='donut'&&<SubjectsDonut scoped={scoped} total={grand}/>}
             {mode==='bars'&&<div style={{display:'flex',flexDirection:'column',gap:16}}>{[...scoped].sort((a,b)=>b.total-a.total).map(s=>{const pct=s.total/Math.max(...scoped.map(x=>x.total))*100;return<div key={s.name} style={{display:'grid',gridTemplateColumns:'110px 1fr 110px',alignItems:'center',gap:16}}><span style={{display:'inline-flex',alignItems:'center',gap:8,fontSize:12,color:'var(--v1-fg)',fontFamily:'var(--v1-sans)'}}><span style={{width:9,height:9,background:s.color}}/>{s.name}</span><div style={{height:20,background:'var(--v1-bg-elev-2)',position:'relative'}}><div style={{position:'absolute',inset:0,width:`${pct}%`,background:s.color}}/></div><span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.total)} <span style={{color:'var(--v1-fg-muted)',fontSize:10}}>{Math.round(s.total/grand*100)}%</span></span></div>;})}
             </div>}
             {mode==='area'&&<BigChart series={scoped.map(s=>({name:s.name,color:s.color,values:s.series}))} scope={scope} height={240} yLabel="h" kind="area"/>}
+            {mode==='trend'&&(()=>{
+              const active=trendSubj||(scoped[0]?.name);
+              const sel=scoped.find(s=>s.name===active)||scoped[0];
+              const trendSeries=sel?computeSubjectSeries(sessions,sel.name,scope):[];
+              const trendTotal=trendSeries.reduce((a,v)=>a+v,0);
+              const trendPeak=Math.max(...trendSeries);
+              const trendAvg=trendSeries.filter(v=>v>0).length>0?trendSeries.reduce((a,v)=>a+v,0)/trendSeries.filter(v=>v>0).length:0;
+              return(
+                <div>
+                  <div style={{display:'flex',gap:4,flexWrap:'wrap',marginBottom:12,paddingBottom:12,borderBottom:'1px solid var(--v1-rule)'}}>
+                    {scoped.map(s=>{
+                      const isActive=s.name===(active);
+                      return(
+                        <button key={s.name} onClick={()=>setTrendSubj(s.name)} style={{fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.14em',background:isActive?s.color:'transparent',color:isActive?'var(--v1-bg)':'var(--v1-fg-3)',border:`1px solid ${isActive?s.color:'var(--v1-rule)'}`,padding:'4px 10px',cursor:'pointer',fontWeight:isActive?700:500,textTransform:'uppercase',transition:'all 0.12s'}}>
+                          <span style={{display:'inline-flex',alignItems:'center',gap:5}}>
+                            {!isActive&&<span style={{width:6,height:6,background:s.color,borderRadius:1,display:'inline-block'}}/>}
+                            {s.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {sel&&(
+                    <div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',border:'1px solid var(--v1-rule)',marginBottom:12}}>
+                        <KPI k="period_total" v={fmtHM(trendTotal)} sub={scopeLabel(scope)} tone={trendTotal>0?'up':'flat'}/>
+                        <KPI k="peak_period" v={fmtHM(trendPeak)} sub={`${sc.unit} high`}/>
+                        <KPI k="avg_active" v={fmtHM(trendAvg)} sub={`per active ${sc.unit}`}/>
+                      </div>
+                      <BigChart series={[{name:sel.name,color:sel.color,values:trendSeries,fillFirst:true}]} scope={scope} height={220} yLabel="h"/>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </Block>
           <Block label="subjects.table" meta={`per-subject · ${scopeLabel(scope)}`}>
             <Tbl cols={['','subject','last','sess','prod','trend',`${sc.label} hrs`,'share']} widths={['4px','auto','60px','40px','40px','200px','90px','1fr']}>
