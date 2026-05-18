@@ -2213,26 +2213,35 @@ function Friend({user,leaderboard=[]}){
         {friends.length===0
           ?<EmptyState title="no friends yet" hint="search by name above to send a friend request"/>
           :<div style={{border:'1px solid var(--v1-rule)'}}>
-            <div style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:26,alignItems:'center',background:'var(--v1-bg-elev)',borderBottom:'1px solid var(--v1-rule)',fontSize:9,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
-              <span/><span style={{padding:'0 6px'}}>who</span><span/>
+            <div style={{display:'grid',gridTemplateColumns:'8px 1fr 1fr auto',padding:'0 12px',height:26,alignItems:'center',background:'var(--v1-bg-elev)',borderBottom:'1px solid var(--v1-rule)',fontSize:9,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',gap:8}}>
+              <span/><span>who</span><span>studying</span><span/>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:32,alignItems:'center',background:'rgba(79,123,255,0.07)',fontFamily:'var(--v1-mono)'}}>
-              <span style={{width:6,height:6,background:'var(--v1-accent)',borderRadius:1,marginRight:8}}/>
-              <span style={{fontSize:11,color:'var(--v1-accent)',padding:'0 6px'}}>you</span>
+            <div style={{display:'grid',gridTemplateColumns:'8px 1fr 1fr auto',padding:'0 12px',height:32,alignItems:'center',background:'rgba(79,123,255,0.07)',fontFamily:'var(--v1-mono)',gap:8}}>
+              <span style={{width:6,height:6,background:'var(--v1-accent)',borderRadius:'50%'}}/>
+              <span style={{fontSize:11,color:'var(--v1-accent)'}}>you</span>
+              <span style={{fontSize:9,color:'var(--v1-fg-muted)'}}>● online</span>
               <span/>
             </div>
-            {friends.map((f,i)=>(
-              <div key={f.id} style={{display:'grid',gridTemplateColumns:'auto 1fr auto',padding:'0 12px',height:32,alignItems:'center',borderTop:'1px solid var(--v1-rule)',background:i%2===0?'transparent':'rgba(255,255,255,0.012)',fontFamily:'var(--v1-mono)'}}>
-                <span style={{width:6,height:6,background:friendColor(f.id),borderRadius:1,marginRight:8}}/>
-                <span style={{fontSize:11,color:'var(--v1-fg)',padding:'0 6px'}}>{f.name}</span>
-                <button onClick={()=>removeFriend(f.id)}
-                  style={{...Btn.sm,fontSize:9,padding:'2px 8px',color:'var(--v1-fg-muted)',borderColor:'var(--v1-rule)'}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule)';e.currentTarget.style.color='var(--v1-fg-muted)';}}>
-                  remove
-                </button>
-              </div>
-            ))}
+            {friends.map((f,i)=>{
+              const lb=leaderboard.find(u=>u.id===f.id);
+              const isOnline=lb?.updated_at&&(Date.now()-new Date(lb.updated_at))<5*60*1000;
+              const subject=lb?.current_subject||null;
+              return(
+                <div key={f.id} style={{display:'grid',gridTemplateColumns:'8px 1fr 1fr auto',padding:'0 12px',height:36,alignItems:'center',borderTop:'1px solid var(--v1-rule)',background:i%2===0?'transparent':'rgba(255,255,255,0.012)',fontFamily:'var(--v1-mono)',gap:8}}>
+                  <span style={{width:6,height:6,background:isOnline?'#6BD89A':friendColor(f.id),borderRadius:isOnline?'50%':'1px',flexShrink:0,boxShadow:isOnline?'0 0 5px #6BD89A':'none'}}/>
+                  <span style={{fontSize:11,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{f.name}</span>
+                  <span style={{fontSize:9,color:isOnline?'#6BD89A':subject?'var(--v1-fg-muted)':'var(--v1-fg-3)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:'0.06em'}}>
+                    {isOnline&&subject?subject:isOnline?'● online':subject?`last: ${subject}`:'—'}
+                  </span>
+                  <button onClick={()=>removeFriend(f.id)}
+                    style={{...Btn.sm,fontSize:9,padding:'2px 8px',color:'var(--v1-fg-muted)',borderColor:'var(--v1-rule)'}}
+                    onMouseEnter={e=>{e.currentTarget.style.borderColor='var(--v1-down)';e.currentTarget.style.color='var(--v1-down)';}}
+                    onMouseLeave={e=>{e.currentTarget.style.borderColor='var(--v1-rule)';e.currentTarget.style.color='var(--v1-fg-muted)';}}>
+                    remove
+                  </button>
+                </div>
+              );
+            })}
           </div>
         }
       </Block>
