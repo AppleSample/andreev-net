@@ -1671,6 +1671,52 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
           <div style={{padding:'10px 0 2px',fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',textAlign:'center'}}>share andreev.net to add more study partners</div>
         )}
       </Block>
+      {(()=>{
+        const subjMap={};
+        sessions.forEach(s=>{
+          if(!s.subject)return;
+          const k=s.subject;
+          if(!subjMap[k])subjMap[k]={name:k,totalH:0,sessions:0,prodSum:0,prodCount:0};
+          subjMap[k].totalH+=sessH(s);
+          subjMap[k].sessions+=1;
+          if(s.productivity){subjMap[k].prodSum+=s.productivity;subjMap[k].prodCount+=1;}
+        });
+        const subjs=Object.values(subjMap).sort((a,b)=>b.totalH-a.totalH);
+        if(subjs.length<2)return null;
+        const maxH=subjs[0].totalH;
+        const bestProd=[...subjs].filter(s=>s.prodCount>0).sort((a,b)=>(b.prodSum/b.prodCount)-(a.prodSum/a.prodCount))[0];
+        return(
+          <Block label="subject.benchmarks" meta="your performance by subject">
+            <div style={{display:'flex',flexDirection:'column',gap:0,border:'1px solid var(--v1-rule)'}}>
+              {subjs.map((s,i)=>{
+                const avg=s.prodCount>0?s.prodSum/s.prodCount:null;
+                const isMostH=i===0;
+                const isBestProd=bestProd&&s.name===bestProd.name;
+                const subj=subjects.find(x=>x.name===s.name);
+                const color=subj?.color||'var(--v1-accent)';
+                return(
+                  <div key={s.name} style={{display:'grid',gridTemplateColumns:'8px 1fr 80px 60px 40px',alignItems:'center',gap:10,padding:'8px 14px',borderBottom:i<subjs.length-1?'1px solid var(--v1-rule)':'none',background:isBestProd?'rgba(79,195,127,0.04)':'transparent'}}>
+                    <span style={{width:4,height:28,background:color,borderRadius:1}}/>
+                    <div style={{minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:6}}>
+                        <span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg)'}}>{s.name}</span>
+                        {isMostH&&<span style={{fontSize:7,letterSpacing:'0.14em',color:'var(--v1-accent)',fontFamily:'var(--v1-mono)'}}>MOST TIME</span>}
+                        {isBestProd&&!isMostH&&<span style={{fontSize:7,letterSpacing:'0.14em',color:'var(--v1-up)',fontFamily:'var(--v1-mono)'}}>BEST PROD</span>}
+                      </div>
+                      <div style={{marginTop:4,height:3,background:'var(--v1-bg-elev-2)',position:'relative',width:'100%'}}>
+                        <div style={{position:'absolute',inset:0,width:`${(s.totalH/maxH)*100}%`,background:color,opacity:0.7}}/>
+                      </div>
+                    </div>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.totalH)}</span>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:avg>=4?'var(--v1-up)':avg>=3?'var(--v1-fg-2)':'var(--v1-fg-3)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{avg?`${avg.toFixed(1)}/5`:'—'}</span>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)',textAlign:'right'}}>{s.sessions}s</span>
+                  </div>
+                );
+              })}
+            </div>
+          </Block>
+        );
+      })()}
     </div>
   );
 }
