@@ -1035,8 +1035,8 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
       </div>
       {(()=>{
         const curBreakOngoing=sessionState.paused&&sessionState.pausedAt?Math.floor((Date.now()-sessionState.pausedAt)/1000):0;
-        const totalBreak=(sessionState.breakSecs||0)+curBreakOngoing;
-        const effPct=totalBreak>0?Math.round(elapsed/(elapsed+totalBreak)*100):null;
+        const totalBreak=(sessionState.breakSecs||0)+curBreakOngoing+pomBreakTotal;
+        const effPct=totalBreak>0?Math.round(focusElapsed/(focusElapsed+totalBreak)*100):null;
         const cells=[
           ['started',startedStr],
           ['subject',sessionState.subject],
