@@ -859,8 +859,8 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
 
   const handleCommitClick=()=>{
     if(!awaitRating){setAwaitRating(true);return;}
-    onCommit(rating,elapsed,sessionState.breakSecs||0);
-    setAwaitRating(false);setRating(null);setPomOn(false);setPomPhaseStart(null);
+    onCommit(rating,focusElapsed,(sessionState.breakSecs||0)+pomBreakTotal);
+    setAwaitRating(false);setRating(null);setPomOn(false);setPomPhaseStart(null);pomAccBreakRef.current=0;
   };
 
   const handleLogSubmit=()=>{
