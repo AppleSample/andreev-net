@@ -3256,9 +3256,8 @@ function Shell({user,onLogout}){
   const _rankSub=leaderboard.length<=1?'no competitors yet':myRank===1?`+${fmtHM(_rankGapH||0)} vs #2`:`${fmtHM(_rankGapH||0)} behind #1`;
   const _rankTone=leaderboard.length<=1?'flat':myRank===1?'up':'down';
 
-  const _wkDelta=thisWkH-weeklyTarget;
-  const _wkTone=thisWkH===0?'flat':_wkDelta>=0?'up':'down';
-  const _wkSub=thisWkH===0?`${weeklyTarget}h weekly target`:_wkDelta>=0?`+${fmtHM(_wkDelta)} vs target`:`${fmtHM(Math.abs(_wkDelta))} to target`;
+  const _wkTone=thisWkH===0?'flat':thisWkH>=weeklyTarget?'up':paceVal>=100?'up':paceVal>=80?'flat':'down';
+  const _wkSub=thisWkH===0?`${weeklyTarget}h target · ${fmtHM(weeklyTarget/7)}/day`:thisWkH>=weeklyTarget?`+${fmtHM(thisWkH-weeklyTarget)} over target`:_paceVsDelta>=0?`+${fmtHM(_paceVsDelta)} ahead of pace`:`${fmtHM(Math.abs(_paceVsDelta))} behind pace`;
 
   const _DAYNAMES=['mon','tue','wed','thu','fri','sat','sun'];
   const _peakSub=peakHour!=null?`${String(peakHour).padStart(2,'0')}:00–${String(peakHour+1).padStart(2,'0')}:00${peakDay!=null?' · '+_DAYNAMES[peakDay]:''}`:'';
