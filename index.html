@@ -2877,6 +2877,9 @@ function Shell({user,onLogout}){
   const[rankAlert,setRankAlert]=useState(null); // {from, to, delta}
   const rankAtHideRef=useRef(null);
   const myRankRef=useRef(null); // updated each render after myRank is computed
+  const[benchmarkAlert,setBenchmarkAlert]=useState(null); // {icon, label, detail, value}
+  const[showTour,setShowTour]=useState(false);
+  const[tourStep,setTourStep]=useState(0);
   const[events,setEvents]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_events')||'[]');}catch{return[];}});
   const[todos,setTodos]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todos')||'[]');}catch{return[];}});
   const[todoStates,setTodoStates]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todo_states')||'{}');}catch{return{};}});
