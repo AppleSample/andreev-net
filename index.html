@@ -1556,7 +1556,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
     {name:'you',color:'var(--v1-accent)',values:mySeries,fillFirst:true},
     ...ranked.filter(u=>!u.isYou).map((u,i)=>{
       const ratio=u._scopeH/myWkSum;
-      return{name:u.name,color:friendColor(u?.id??f?.id??''),values:mySeries.map(v=>v*ratio),dim:true};
+      return{name:u.name,color:friendColor(u.id),values:mySeries.map(v=>v*ratio),dim:true};
     }),
   ];
 
