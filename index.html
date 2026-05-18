@@ -152,8 +152,16 @@ const sbAPI={
       _sb.from('profiles').select('id,name').in('id',allIds),
     ]);
     const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
-    const seen=new Set();
-    return(stats||[]).filter(s=>{if(seen.has(s.user_id))return false;seen.add(s.user_id);return true;}).map(s=>({id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0,updated_at:s.updated_at||null,current_subject:s.current_subject||null}));
+    // Deduplicate by user_id keeping the row with the most recent updated_at.
+    // Cannot rely on ORDER BY because PostgreSQL puts NULLs first in DESC, which
+    // would cause a ghost row with 0 hours to shadow the real row.
+    const best=new Map();
+    for(const s of(stats||[])){
+      if(!s.user_id)continue;
+      const prev=best.get(s.user_id);
+      if(!prev||(s.updated_at&&(!prev.updated_at||s.updated_at>prev.updated_at)))best.set(s.user_id,s);
+    }
+    return allIds.filter(id=>best.has(id)).map(id=>{const s=best.get(id);return{id:s.user_id,name:nameMap[s.user_id]||'unknown',isYou:s.user_id===uid,weekly_secs:s.weekly_secs||0,total_secs:s.total_secs||0,streak:s.streak||0,updated_at:s.updated_at||null,current_subject:s.current_subject||null};});
   },
   async removeFriend(uid,friendId){
     await _sb.from('friend_requests').delete().or(`and(from_id.eq.${uid},to_id.eq.${friendId}),and(from_id.eq.${friendId},to_id.eq.${uid})`);
