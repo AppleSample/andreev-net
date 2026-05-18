@@ -260,7 +260,7 @@ const SCOPE_BASE={'1d':0.18,'7d':3.0,'30d':2.6,'90d':18,'all':76};
 const SUBJ_COLORS=['#4F7BFF','#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A'];
 function seed(s,i){return(Math.sin(s*12.9898+i*78.233)*43758.5453)%1;}
 function genSeries(scope,s,scale=1){const c=SCOPES.find(x=>x.id===scope),base=SCOPE_BASE[scope]*scale;return Array.from({length:c.n},(_,i)=>{const w=Math.sin(i*0.7+s)*0.35+Math.cos(i*0.4+s*1.7)*0.22+Math.sin(i*0.21+s*0.5)*0.18,n=Math.abs(seed(s,i))*0.25,v=base*(1+w+n);return Math.max(0,v);});}
-function fmtHM(h){const H=Math.floor(h),M=Math.round((h-H)*60);return`${H}h ${String(M).padStart(2,'0')}m`;}
+function fmtHM(h){const t=Math.round(h*60),H=Math.floor(t/60),M=t%60;return`${H}h ${String(M).padStart(2,'0')}m`;}
 function scopeLabel(s){return({'1d':'today','7d':'this week','30d':'last 30 days','90d':'last 90 days','all':'all time'})[s];}
 function userSeries(i,scope){return genSeries(scope,3+i*1.7,1-i*0.06);}
 function subjSeries(i,scope){return genSeries(scope,11+i*2.3,0.5-i*0.07);}
