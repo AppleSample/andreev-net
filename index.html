@@ -1521,7 +1521,7 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   // Pick the right metric for friends based on scope
   const useTotal=scope==='all';
   const friendH=u=>useTotal?u.total_secs/3600:u.weekly_secs/3600;
-  const scopeColLabel=useTotal?'all time':'this week';
+  const scopeColLabel=scopeLabel(scope);
 
   // Build ranked list — override "you" with locally-computed total
   const ranked=[...leaderboard]
