@@ -1668,12 +1668,12 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
   },[lbScope,leaderboard]);
   const myRank=ranked.findIndex(u=>u.isYou)+1||1;
 
-  // Build chart series: real series for you, approximated for friends (chart scope, not lb scope)
-  const myWkSum=mySeries.reduce((a,v)=>a+v,0)||0.001;
+  // Build chart series: real series for you, scaled for friends using same lb boundary
+  const myLbSum=Math.max(myLbTotal,0.001);
   const chartSeries=[
     {name:'you',color:'var(--v1-accent)',values:mySeries,fillFirst:true},
     ...ranked.filter(u=>!u.isYou).map((u,i)=>{
-      const ratio=u._scopeH/myWkSum;
+      const ratio=u._scopeH/myLbSum;
       return{name:u.name,color:friendColor(u.id),values:mySeries.map(v=>v*ratio),dim:true};
     }),
   ];
