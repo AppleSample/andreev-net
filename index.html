@@ -847,8 +847,14 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
                 <div key={u.id} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:i<online.length-1?'1px solid var(--v1-rule)':'none'}}>
                   <span style={{width:6,height:6,borderRadius:'50%',background:'#6BD89A',flexShrink:0,boxShadow:'0 0 5px #6BD89A'}}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)'}}>{u.name}</span>
-                    {u.current_subject&&<span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',marginLeft:8,letterSpacing:'0.06em'}}>{u.current_subject}</span>}
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',fontWeight:600}}>{u.name}</span>
+                    {u.current_subject?(
+                      <div style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-3)',letterSpacing:'0.08em',marginTop:1}}>
+                        <span style={{color:'#6BD89A',marginRight:4}}>◈</span>{u.current_subject}
+                      </div>
+                    ):(
+                      <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.08em',marginTop:1}}>subject unknown</div>
+                    )}
                   </div>
                   <span style={{fontFamily:'var(--v1-mono)',fontSize:8,letterSpacing:'0.12em',color:'#6BD89A',flexShrink:0}}>LIVE</span>
                 </div>
