@@ -1542,10 +1542,10 @@ function Leader({sessions=[],user,streak=0,subjects=[],leaderboard=[]}){
 
   return(
     <div>
-      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta="ranked by weekly hours" action={<ScopePicker scope={scope} onScope={setScope}/>}>
+      <Block label={`rank.summary · ${scopeLabel(scope)}`} meta={`ranked by ${scopeColLabel}`} action={<ScopePicker scope={scope} onScope={setScope}/>}>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',border:'1px solid var(--v1-rule)'}}>
           <KPI k="your_rank" v={ranked.length>1?`#${myRank}`:'solo'} sub={ranked.length>1?`of ${ranked.length}`:'add friends to rank'} tone={myRank===1&&ranked.length>1?'up':'flat'}/>
-          <KPI k="this_week" v={fmtHM(myTotal)} sub={`${(myTotal/sc.n).toFixed(2)}h / ${sc.unit}`} tone={myTotal>0?'up':'flat'}/>
+          <KPI k={scopeColLabel} v={fmtHM(myTotal)} sub={`${(myTotal/sc.n).toFixed(2)}h / ${sc.unit}`} tone={myTotal>0?'up':'flat'}/>
           <KPI k="streak" v={`${streak}d`} sub={streak>0?'keep it up':'start today'} tone={streak>0?'up':'flat'}/>
           <KPI k="trend" v={`${trend>=0?'+':''}${trend.toFixed(0)}%`} sub="end vs start" tone={trend>=0?'up':'down'}/>
         </div>
