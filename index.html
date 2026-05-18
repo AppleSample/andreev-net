@@ -3044,6 +3044,33 @@ function Shell({user,onLogout}){
     });
   };
 
+  const checkMilestones=(allSessions,subject)=>{
+    const seen=new Set(JSON.parse(localStorage.getItem('seen_milestones')||'[]'));
+    const hits=[];
+    if(subject){
+      const subjH=allSessions.filter(s=>s.subject===subject).reduce((a,s)=>a+(s.secs||0)/3600,0);
+      for(const h of[10,25,50,100,250,500]){
+        const k=`subj:${subject}:${h}h`;
+        if(!seen.has(k)&&subjH>=h){hits.push({key:k,icon:'◆',label:`${h}H MILESTONE`,detail:subject.toUpperCase(),value:`${subjH.toFixed(1)}h in this subject`});seen.add(k);}
+      }
+    }
+    const totalH=allSessions.reduce((a,s)=>a+(s.secs||0)/3600,0);
+    for(const h of[10,25,50,100,250,500]){
+      const k=`total:${h}h`;
+      if(!seen.has(k)&&totalH>=h){hits.push({key:k,icon:'▲',label:`${h}H TOTAL`,detail:'ALL SUBJECTS',value:`${totalH.toFixed(1)}h accumulated`});seen.add(k);}
+    }
+    const count=allSessions.length;
+    for(const n of[10,25,50,100,250,500]){
+      const k=`sessions:${n}`;
+      if(!seen.has(k)&&count>=n){hits.push({key:k,icon:'●',label:`${n} SESSIONS`,detail:'LOGGED',value:`session #${count}`});seen.add(k);}
+    }
+    if(hits.length>0){
+      localStorage.setItem('seen_milestones',JSON.stringify([...seen]));
+      setBenchmarkAlert(hits[0]);
+      setTimeout(()=>setBenchmarkAlert(null),8000);
+    }
+  };
+
   const handleCommit=(rating,elapsed,breakSecs)=>{
     const now2=new Date();
     const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
