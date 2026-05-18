@@ -2534,6 +2534,140 @@ const TABS=[
   {id:'squad',    label:'squad',  kbd:'9'},
 ];
 
+/* ── SQUAD ──
+   SQL to run once in Supabase SQL editor:
+   create table study_groups (id bigserial primary key, name text not null, owner_id uuid references profiles(id) on delete cascade, invite_code text unique not null, created_at timestamptz default now());
+   create table group_members (group_id bigint references study_groups(id) on delete cascade, user_id uuid references profiles(id) on delete cascade, primary key(group_id,user_id));
+   alter table study_groups enable row level security;
+   alter table group_members enable row level security;
+   create policy "view_groups" on study_groups for select using (exists(select 1 from group_members where group_id=study_groups.id and user_id=auth.uid()));
+   create policy "create_groups" on study_groups for insert with check (auth.uid()=owner_id);
+   create policy "view_members" on group_members for select using (exists(select 1 from group_members gm where gm.group_id=group_members.group_id and gm.user_id=auth.uid()));
+   create policy "join_group" on group_members for insert with check (auth.uid()=user_id);
+   create policy "leave_group" on group_members for delete using (auth.uid()=user_id);
+*/
+function Squad({user}){
+  const[groups,setGroups]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[newName,setNewName]=useState('');
+  const[joinCode,setJoinCode]=useState('');
+  const[status,setStatus]=useState(null);
+  const[selGroup,setSelGroup]=useState(null);
+  const[lbScope,setLbScope]=useState('7d');
+  const uid=user?.id;
+
+  const reload=()=>{
+    if(!_sb||!uid){setLoading(false);return;}
+    sbAPI.getMyGroups(uid).then(gs=>{setGroups(gs);setLoading(false);}).catch(()=>setLoading(false));
+  };
+  useEffect(reload,[uid]);
+
+  const createGroup=async()=>{
+    const n=newName.trim();if(!n)return;
+    setStatus(null);
+    const r=await sbAPI.createGroup(uid,n);
+    if(r.error){setStatus({err:r.error});return;}
+    setNewName('');setStatus({ok:`squad "${n}" created`});reload();
+  };
+  const joinGroup=async()=>{
+    const c=joinCode.trim();if(!c)return;
+    setStatus(null);
+    const r=await sbAPI.joinGroup(uid,c);
+    if(r.error){setStatus({err:r.error});return;}
+    setJoinCode('');setStatus({ok:`joined "${r.group?.name}"`});reload();
+  };
+  const leaveGroup=async(gid)=>{
+    await sbAPI.leaveGroup(uid,gid);
+    setGroups(gs=>gs.filter(g=>g.id!==gid));
+    if(selGroup?.id===gid)setSelGroup(null);
+  };
+
+  const activeGroup=selGroup?groups.find(g=>g.id===selGroup.id)||selGroup:null;
+  const ranked=activeGroup?[...activeGroup.members].sort((a,b)=>(lbScope==='all'?b.total_secs-a.total_secs:b.weekly_secs-a.weekly_secs)).map((u,i)=>({...u,rank:i+1,h:(lbScope==='all'?u.total_secs:u.weekly_secs)/3600})):[];
+
+  if(!_sb)return(<div style={{padding:40,fontFamily:'var(--v1-mono)',fontSize:12,color:'var(--v1-fg-muted)'}}>squads require supabase connection</div>);
+
+  return(
+    <div style={{display:'grid',gridTemplateColumns:'240px 1fr',height:'100%',overflow:'hidden'}}>
+      {/* sidebar */}
+      <div style={{borderRight:'1px solid var(--v1-rule)',display:'flex',flexDirection:'column',overflowY:'auto'}}>
+        <Block label="my.squads" meta={`${groups.length} groups`}>
+          {loading?<div style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>loading…</div>:groups.length===0?(
+            <div style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>no squads yet · create or join one</div>
+          ):(
+            <div style={{display:'flex',flexDirection:'column',gap:0}}>
+              {groups.map((g,i)=>{
+                const a=activeGroup?.id===g.id;
+                return(
+                  <div key={g.id} onClick={()=>setSelGroup(g)} style={{padding:'8px 12px',cursor:'pointer',background:a?'rgba(79,123,255,0.10)':'transparent',borderLeft:a?'2px solid var(--v1-accent)':'2px solid transparent',borderBottom:i<groups.length-1?'1px solid var(--v1-rule)':'none',display:'flex',alignItems:'center',gap:8,transition:'background 80ms'}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:'var(--v1-mono)',fontSize:12,color:a?'var(--v1-accent)':'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{g.name}</div>
+                      <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{g.members.length} member{g.members.length!==1?'s':''} {g.isOwner?'· owner':''}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Block>
+        <Block label="create.squad" meta="start a new group">
+          <div style={{display:'flex',gap:6,flexDirection:'column'}}>
+            <Input value={newName} onChange={setNewName} placeholder="squad name…" onKeyDown={e=>{if(e.key==='Enter')createGroup();}}/>
+            <button onClick={createGroup} disabled={!newName.trim()} style={{...Btn.md,width:'100%',justifyContent:'center',display:'flex',background:newName.trim()?'var(--v1-accent)':'transparent',color:newName.trim()?'var(--v1-bg)':'var(--v1-fg-muted)',borderColor:newName.trim()?'var(--v1-accent)':'var(--v1-rule)',opacity:newName.trim()?1:0.5}}>+ create</button>
+          </div>
+        </Block>
+        <Block label="join.squad" meta="enter invite code">
+          <div style={{display:'flex',gap:6,flexDirection:'column'}}>
+            <Input value={joinCode} onChange={v=>setJoinCode(v.toUpperCase())} placeholder="XXXXXXXX" onKeyDown={e=>{if(e.key==='Enter')joinGroup();}}/>
+            <button onClick={joinGroup} disabled={!joinCode.trim()} style={{...Btn.md,width:'100%',justifyContent:'center',display:'flex',background:joinCode.trim()?'var(--v1-bg-elev-2)':'transparent',color:joinCode.trim()?'var(--v1-fg)':'var(--v1-fg-muted)',borderColor:joinCode.trim()?'var(--v1-rule-strong)':'var(--v1-rule)',opacity:joinCode.trim()?1:0.5}}>join →</button>
+          </div>
+        </Block>
+        {status&&(
+          <div style={{margin:'0 16px 12px',padding:'8px 12px',border:`1px solid ${status.err?'var(--v1-down)':'var(--v1-up)'}`,fontFamily:'var(--v1-mono)',fontSize:10,color:status.err?'var(--v1-down)':'var(--v1-up)',letterSpacing:'0.06em'}}>{status.err||status.ok}</div>
+        )}
+      </div>
+      {/* main panel */}
+      <div style={{overflowY:'auto',display:'flex',flexDirection:'column'}}>
+        {!activeGroup?(
+          <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>
+            <span style={{fontSize:32,opacity:0.2}}>◉</span>
+            <span style={{fontSize:11,letterSpacing:'0.12em',textTransform:'uppercase'}}>select a squad to view leaderboard</span>
+          </div>
+        ):(
+          <div>
+            <Block label={`${activeGroup.name.toLowerCase()}.leaderboard`} meta={`${activeGroup.members.length} members`}
+              action={
+                <div style={{display:'flex',gap:0}}>
+                  {['7d','all'].map(s=>{const a=lbScope===s;return(
+                    <button key={s} onClick={()=>setLbScope(s)} style={{fontFamily:'var(--v1-mono)',fontSize:10,background:a?'var(--v1-accent)':'transparent',color:a?'var(--v1-bg)':'var(--v1-fg-3)',border:'none',padding:'5px 10px',cursor:'pointer',letterSpacing:'0.12em',fontWeight:a?600:500}}>{s==='7d'?'WEEK':'ALL TIME'}</button>
+                  );})}
+                </div>
+              }>
+              <Tbl cols={['#','who',lbScope==='7d'?'this week':'all time','streak']} widths={['32px','auto','90px','70px']}>
+                {ranked.map((u,i)=>(
+                  <Row key={u.id} hi={u.isYou}>
+                    <Cell mono dim>#{String(u.rank).padStart(2,'0')}</Cell>
+                    <Cell><span style={{display:'inline-flex',alignItems:'center',gap:8}}><span style={{width:7,height:7,background:u.isYou?'var(--v1-accent)':friendColor(u.id),borderRadius:1}}/><span style={{color:u.isYou?'var(--v1-accent)':'var(--v1-fg)'}}>{u.isYou?'you':u.name}</span>{!u.isYou&&u.updated_at&&(Date.now()-new Date(u.updated_at))<5*60*1000&&<span style={{width:7,height:7,borderRadius:'50%',background:'#6BD89A'}}/>}</span></Cell>
+                    <Cell mono right tone={u.isYou&&u.rank===1?'up':'flat'}>{fmtHM(u.h)}</Cell>
+                    <Cell mono dim>{u.streak}d</Cell>
+                  </Row>
+                ))}
+              </Tbl>
+            </Block>
+            <Block label="invite.code" meta="share to add members" noBorder>
+              <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',border:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)'}}>
+                <span style={{fontFamily:'var(--v1-mono)',fontSize:22,letterSpacing:'0.18em',color:'var(--v1-accent)',fontWeight:600}}>{activeGroup.invite_code}</span>
+                <button onClick={()=>navigator.clipboard.writeText(activeGroup.invite_code)} style={{...Btn.sm,fontSize:9,padding:'3px 10px'}}>copy</button>
+                {!activeGroup.isOwner&&<button onClick={()=>leaveGroup(activeGroup.id)} style={{...Btn.sm,fontSize:9,padding:'3px 10px',marginLeft:'auto',color:'var(--v1-down)',borderColor:'var(--v1-down)'}}>leave squad</button>}
+              </div>
+            </Block>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const DEFAULT_SESSION={active:false,subject:'',startedAt:0,elapsed:0,paused:false,breakSecs:0,pausedAt:null};
 
 function ShareCard({user,thisWkH,totalH,streak,myRank,totalUsers,sessions=[],subjects=[],onClose}){
