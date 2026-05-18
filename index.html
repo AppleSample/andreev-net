@@ -1919,6 +1919,7 @@ function Subjects({user,subjects=[],setSubjects,sessions=[]}){
 
 /* ── NETWORK ── */
 const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
+function friendColor(id){let h=0;for(let i=0;i<(id||'').length;i++)h=(h*31+id.charCodeAt(i))>>>0;return FRIEND_COLORS[h%FRIEND_COLORS.length];}
 function getFriendData(uid){try{return JSON.parse(localStorage.getItem('andreev_fd_'+uid)||'{"friends":[],"requests":[]}')}catch{return{friends:[],requests:[]};}}
 function setFriendData(uid,d){localStorage.setItem('andreev_fd_'+uid,JSON.stringify(d));}
 
