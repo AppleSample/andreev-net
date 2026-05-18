@@ -3214,13 +3214,22 @@ function Shell({user,onLogout}){
   const _30dAgo=new Date(_sn);_30dAgo.setDate(_sn.getDate()-30);
   const activeDays30=new Set(sessions.filter(s=>s.created_at&&new Date(s.created_at)>=_30dAgo).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;})).size;
 
-  const paceVal=Math.round((thisWkH/weeklyTarget)*100);
-  const paceTone=paceVal>=100?'up':paceVal>=50?'flat':'down';
   const _liveNow=new Date();
   const _todayDow=(_liveNow.getDay()+6)%7; // Mon=0, Sun=6
+  const _nowHour=_liveNow.getHours();
   const _daysLeft=Math.max(1,7-_todayDow);
   const _hNeeded=Math.max(0,weeklyTarget-thisWkH);
-  const _paceDesc=paceVal>=100?`+${(thisWkH-weeklyTarget).toFixed(1)}h · target met`:_daysLeft===1?`${_hNeeded.toFixed(1)}h needed today`:`${(_hNeeded/_daysLeft).toFixed(1)}h/day · ${_daysLeft}d left`;
+  // Pace = actual vs what you *should* have by now, not vs full-week target
+  const _daysElapsed=Math.max(_todayDow+_nowHour/24, 1/24);
+  const _expectedNow=weeklyTarget*(_daysElapsed/7);
+  const paceVal=Math.round((thisWkH/Math.max(_expectedNow,0.01))*100);
+  const _paceVsDelta=thisWkH-_expectedNow;
+  const paceTone=thisWkH>=weeklyTarget?'up':paceVal>=100?'up':paceVal>=80?'flat':'down';
+  const _paceDesc=thisWkH>=weeklyTarget
+    ?`+${fmtHM(thisWkH-weeklyTarget)} over weekly target`
+    :paceVal>=100
+      ?`+${fmtHM(_paceVsDelta)} ahead · ${fmtHM(_hNeeded/_daysLeft)}/day to finish`
+      :`${fmtHM(Math.abs(_paceVsDelta))} behind pace · ${fmtHM(_hNeeded/_daysLeft)}/day left`;
 
   // Online friends: updated_at within last 5 minutes
   const _onlineTs=Date.now();
