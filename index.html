@@ -2673,6 +2673,27 @@ function Shell({user,onLogout}){
   const myRankPos=_sortedLb.findIndex(u=>u.isYou);
   const myRank=myRankPos>=0?myRankPos+1:leaderboard.length>0?leaderboard.length+1:null;
 
+  // Status strip analytics
+  const _dailyTarget=weeklyTarget/7;
+  const _todayDelta=todayH-_dailyTarget;
+  const _todayTone=todayH===0?'flat':_todayDelta>=0?'up':'down';
+  const _todaySub=todayH===0?`${_dailyTarget.toFixed(1)}h daily target`:_todayDelta>=0?`+${fmtHM(_todayDelta)} vs target`:`${fmtHM(Math.abs(_todayDelta))} below target`;
+
+  const _me=_sortedLb.find(u=>u.isYou);
+  const _myWkH=(_me?.weekly_secs||0)/3600;
+  const _no1=_sortedLb[0];
+  const _no2=_sortedLb[1];
+  const _rankGapH=myRank===1&&_no2?_myWkH-(_no2.weekly_secs/3600):_no1&&myRank!==1?(_no1.weekly_secs/3600)-_myWkH:null;
+  const _rankSub=leaderboard.length<=1?'no competitors yet':myRank===1?`+${fmtHM(_rankGapH||0)} vs #2`:`${fmtHM(_rankGapH||0)} behind #1`;
+  const _rankTone=leaderboard.length<=1?'flat':myRank===1?'up':'down';
+
+  const _wkDelta=thisWkH-weeklyTarget;
+  const _wkTone=thisWkH===0?'flat':_wkDelta>=0?'up':'down';
+  const _wkSub=thisWkH===0?`${weeklyTarget}h weekly target`:_wkDelta>=0?`+${fmtHM(_wkDelta)} vs target`:`${fmtHM(Math.abs(_wkDelta))} to target`;
+
+  const _DAYNAMES=['mon','tue','wed','thu','fri','sat','sun'];
+  const _peakSub=peakHour!=null?`${String(peakHour).padStart(2,'0')}:00–${String(peakHour+1).padStart(2,'0')}:00${peakDay!=null?' · '+_DAYNAMES[peakDay]:''}`:'';
+
   return(
     <div className="v1" style={{background:'var(--v1-bg)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',width:'100%',height:'100%',display:'flex',flexDirection:'column',position:'relative',overflow:'hidden'}}>
       {showPicker&&<SubjectPicker onStart={handleStartSession} onClose={()=>setShowPicker(false)} subjects={subjects}/>}
