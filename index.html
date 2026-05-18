@@ -270,6 +270,15 @@ function userSeries(i,scope){return genSeries(scope,3+i*1.7,1-i*0.06);}
 function subjSeries(i,scope){return genSeries(scope,11+i*2.3,0.5-i*0.07);}
 function sumH(v){return v.reduce((a,x)=>a+x,0);}
 function sessH(s){if(s.secs!=null)return s.secs/3600;const m=s.duration?.match(/(\d+)h\s+(\d+)m/);return m?parseInt(m[1])+parseInt(m[2])/60:0;}
+function computeProdByDuration(sessions){
+  const rated=sessions.filter(s=>s.secs>0&&s.productivity);
+  if(rated.length<3)return null;
+  const BUCKETS=[{label:'<30 min',min:0,max:1800},{label:'30–60 min',min:1800,max:3600},{label:'1–2 h',min:3600,max:7200},{label:'>2 h',min:7200,max:Infinity}];
+  return BUCKETS.map(b=>{
+    const grp=rated.filter(s=>s.secs>=b.min&&s.secs<b.max);
+    return{label:b.label,count:grp.length,avgProd:grp.length?grp.reduce((a,s)=>a+s.productivity,0)/grp.length:null};
+  }).filter(b=>b.count>0);
+}
 function computeStats(sessions){
   const n=new Date(),dow=(n.getDay()+6)%7;
   const wkMon=new Date(n);wkMon.setDate(n.getDate()-dow);wkMon.setHours(0,0,0,0);
