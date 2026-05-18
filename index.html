@@ -3090,7 +3090,7 @@ function Shell({user,onLogout}){
     const brk=breakSecs||0;
     const eff=brk>0?Math.round(elapsed/(elapsed+brk)*100):null;
     const newEntry={day:dayStr,time:timeStr,subject:sessionState.subject,color,duration:durStr,productivity:rating,note:'',secs:elapsed,breakSecs:brk,efficiency:eff,created_at:now2.toISOString()};
-    setSessions(prev=>[newEntry,...prev]);
+    setSessions(prev=>{const next=[newEntry,...prev];checkMilestones(next,newEntry.subject);return next;});
     if(user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:elapsed,productivity:rating,note:'',day:dayStr,time:timeStr,color});
     setSessionState(DEFAULT_SESSION);
     setPomOn(false);setPomPhaseStart(null);
