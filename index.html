@@ -2876,6 +2876,7 @@ function Shell({user,onLogout}){
           );})}
         </nav>
         <span style={{fontSize:11,color:'var(--v1-fg-3)',fontVariantNumeric:'tabular-nums',letterSpacing:'0.02em'}}>{clockStr} <span style={{color:'var(--v1-fg-muted)'}}>BCN</span></span>
+        <button onClick={()=>setShowShareCard(true)} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:'0.08em'}}>↗ share</button>
         <button onClick={onLogout} title={user?.email} style={{background:'transparent',border:'1px solid var(--v1-rule)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:10,padding:'3px 8px',cursor:'pointer',letterSpacing:'0.08em'}}>↩ out</button>
         <button onClick={()=>setShowFilter(f=>!f)} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 8px',border:`1px solid ${(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-rule)'}`,fontSize:11,color:(filterSubjects.length>0||filterMinProd>0)?'var(--v1-accent)':'var(--v1-fg-3)',background:'transparent',cursor:'pointer',fontFamily:'var(--v1-mono)'}}>
           <span>⌕</span><span>search</span>{(filterSubjects.length>0||filterMinProd>0)&&<span style={{background:'var(--v1-accent)',color:'var(--v1-bg)',borderRadius:2,padding:'0 4px',fontSize:9,fontWeight:700}}>{filterSubjects.length+(filterMinProd>0?1:0)}</span>}<span style={{marginLeft:4,color:'var(--v1-fg-muted)',fontSize:10}}>⌘K</span>
