@@ -2734,28 +2734,45 @@ function Shell({user,onLogout}){
   );
 }
 
+const SAVED_CREDS_KEY='andreev_saved_creds';
+function saveCreds(username,password){try{localStorage.setItem(SAVED_CREDS_KEY,JSON.stringify({username,password}));}catch{}}
+function loadCreds(){try{return JSON.parse(localStorage.getItem(SAVED_CREDS_KEY)||'null');}catch{return null;}}
+function clearCreds(){try{localStorage.removeItem(SAVED_CREDS_KEY);}catch{}}
+
 function App(){
   const[user,setUser]=useState(null);
   const[checking,setChecking]=useState(true);
 
   useEffect(()=>{
     if(!_sb){setChecking(false);return;}
-    const timeout=setTimeout(()=>{setChecking(false);},3000);
+    const timeout=setTimeout(()=>{setChecking(false);},5000);
     sbAPI.getSession()
-      .then(u=>{setUser(u);})
+      .then(async u=>{
+        if(u){setUser(u);return;}
+        // No live session — try saved credentials
+        const c=loadCreds();
+        if(c){
+          const res=await sbAPI.signIn(toSyntheticEmail(c.username),c.password).catch(()=>null);
+          if(res?.user)setUser(res.user);
+        }
+      })
       .catch(()=>{})
       .finally(()=>{clearTimeout(timeout);setChecking(false);});
     return()=>clearTimeout(timeout);
   },[]);
 
-  const handleLogout=async()=>{await sbAPI.signOut();setUser(null);};
+  const handleAuth=(u,username,password)=>{
+    if(username&&password)saveCreds(username,password);
+    setUser(u);
+  };
+  const handleLogout=async()=>{await sbAPI.signOut();clearCreds();setUser(null);};
 
   if(checking)return(
     <div className="v1" style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--v1-bg)',color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontSize:12,letterSpacing:'0.12em'}}>
       loading...
     </div>
   );
-  if(!user) return <AuthScreen onAuth={setUser}/>;
+  if(!user) return <AuthScreen onAuth={handleAuth}/>;
   return <Shell user={user} onLogout={handleLogout}/>;
 }
 
