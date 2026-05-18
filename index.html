@@ -2461,6 +2461,14 @@ function Shell({user,onLogout}){
     return()=>clearTimeout(t);
   },[sessions,user?.id]);
 
+  // Refresh leaderboard immediately when navigating to rank or home tabs
+  useEffect(()=>{
+    if(!user?.id||!_sb)return;
+    if(screen==='leader'||screen==='dashboard'){
+      sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
+    }
+  },[screen,user?.id]);
+
   // Heartbeat: keep updated_at fresh so friends see us online; also refresh leaderboard
   useEffect(()=>{
     if(!user?.id||!_sb)return;
