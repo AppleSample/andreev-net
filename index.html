@@ -2615,29 +2615,28 @@ function Shell({user,onLogout}){
     if(!user?.id||!_sb)return;
     const onVis=()=>{
       if(document.visibilityState==='hidden'){
-        rankAtHideRef.current=myRank;
+        rankAtHideRef.current=myRankRef.current; // snapshot rank via ref (avoids stale closure)
       } else {
-        sbAPI.getLeaderboard(user.id).then(lb=>{
-          setLeaderboard(lb);
-          // comparison happens after leaderboard state updates in the effect below
-        }).catch(()=>{});
+        sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{});
       }
     };
     document.addEventListener('visibilitychange',onVis);
     return()=>document.removeEventListener('visibilitychange',onVis);
-  },[user?.id,myRank]);
+  },[user?.id]);
 
   useEffect(()=>{
-    if(rankAtHideRef.current==null||!myRank)return;
+    if(rankAtHideRef.current==null||!myRankRef.current)return;
     const prev=rankAtHideRef.current;
-    if(myRank!==prev){
-      const delta=prev-myRank; // positive=improved, negative=dropped
-      setRankAlert({from:prev,to:myRank,delta});
-      rankAtHideRef.current=null;
+    const cur=myRankRef.current;
+    if(cur!==prev){
+      const delta=prev-cur; // positive=improved, negative=dropped
+      setRankAlert({from:prev,to:cur,delta});
       const t=setTimeout(()=>setRankAlert(null),7000);
+      rankAtHideRef.current=null;
       return()=>clearTimeout(t);
     }
-  },[myRank]);
+    rankAtHideRef.current=null;
+  },[leaderboard]);
 
   // Always patch the "you" entry with locally-computed stats so it's never stale
   const liveLeaderboard=React.useMemo(()=>{
