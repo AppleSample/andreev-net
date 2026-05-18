@@ -2035,6 +2035,7 @@ function SubjectsDonut({scoped,total}){
 function Subjects({user,subjects=[],setSubjects,sessions=[]}){
   const[scope,setScope]=useState('7d');
   const[mode,setMode]=useState('donut');
+  const[trendSubj,setTrendSubj]=useState(null);
   const[manageOpen,setManageOpen]=useState(false);
   // Use shared subjects from Shell
   const subjs=subjects.map(s=>({...s,_idx:s.id??s._idx??s.name}));
