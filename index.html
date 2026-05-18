@@ -2498,6 +2498,7 @@ function Shell({user,onLogout}){
   const sessionStateRef=useRef(DEFAULT_SESSION);
   const[showPicker,setShowPicker]=useState(false);
   const[showFilter,setShowFilter]=useState(false);
+  const[showShareCard,setShowShareCard]=useState(false);
   const[filterSubjects,setFilterSubjects]=useState([]);
   const[filterMinProd,setFilterMinProd]=useState(0);
   const tick=useTick(1000);
