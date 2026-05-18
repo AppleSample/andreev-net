@@ -821,13 +821,17 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
   const[editingPom,setEditingPom]=useState(false);
   const[pomWorkDraft,setPomWorkDraft]=useState(String(pomWork));
   const[pomBreakDraft,setPomBreakDraft]=useState(String(pomBreak));
+  const pomAccBreakRef=useRef(0); // accumulated completed pom-break seconds
 
   // auto phase-switch
   useEffect(()=>{
     if(!pomOn||!pomPhaseStart||sessionState.paused)return;
     const phaseLen=(pomPhase==='work'?pomWork:pomBreak)*60;
     const spent=Math.floor((Date.now()-pomPhaseStart)/1000);
-    if(spent>=phaseLen){setPomPhase(p=>p==='work'?'break':'work');setPomPhaseStart(Date.now());}
+    if(spent>=phaseLen){
+      if(pomPhase==='break')pomAccBreakRef.current+=spent;
+      setPomPhase(p=>p==='work'?'break':'work');setPomPhaseStart(Date.now());
+    }
   },[tick]);
 
   const togglePom=()=>{
