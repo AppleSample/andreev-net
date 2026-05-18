@@ -880,7 +880,7 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
 
   const startTime=sessionState.active?new Date(sessionState.startedAt):null;
   const startedStr=startTime?`${String(startTime.getHours()).padStart(2,'0')}:${String(startTime.getMinutes()).padStart(2,'0')}`:'—';
-  const progressPct=Math.min(100,Math.round((elapsed/(2*3600))*100));
+  const progressPct=Math.min(100,Math.round((focusElapsed/(2*3600))*100));
   const PRESETS=subjects.length>0?subjects.map(s=>s.name):['math','cs','history','physics'];
   const inpStyle={background:'var(--v1-bg)',border:'1px solid var(--v1-rule-strong)',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontSize:13,padding:'8px 10px',outline:'none',width:'100%',boxSizing:'border-box'};
 
