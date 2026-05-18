@@ -2393,6 +2393,8 @@ function Shell({user,onLogout}){
 
   const[subjects,setSubjects]=useState([]);
   const[leaderboard,setLeaderboard]=useState([]);
+  const[onlineAlert,setOnlineAlert]=useState(null); // {name, subject}
+  const prevOnlineRef=useRef(new Set());
   const[events,setEvents]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_events')||'[]');}catch{return[];}});
   const[todos,setTodos]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todos')||'[]');}catch{return[];}});
   const[todoStates,setTodoStates]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_todo_states')||'{}');}catch{return{};}});
