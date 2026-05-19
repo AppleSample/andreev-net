@@ -613,25 +613,73 @@ function DashSessionBlock({sessionState,onNav,subjects=[]}){
 }
 
 /* ── DASHBOARD SESSION HERO (replaces hours block when session is active) ── */
-function DashSessionHero({sessionState,onNav,subjects=[]}){
+function DashSessionHero({sessionState,onNav,subjects=[],pomOn=false,pomPhase='work',pomWork=25,pomBreak=5,pomPhaseStart=null,pomSets=0,pomBreakAccSecs=0}){
   const tick=useTick(1000);
   const elapsed=sessionState.paused
     ?sessionState.elapsed
     :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000);
   const subjData=subjects.find(s=>s.name===sessionState.subject);
   const color=subjData?subjData.color:'var(--v1-accent)';
+
+  // pom phase countdown
+  let pomRemaining=null,pomPhaseSecs=null;
+  if(pomOn&&pomPhaseStart){
+    pomPhaseSecs=(pomPhase==='work'?pomWork:pomBreak)*60;
+    pomRemaining=sessionState.paused?pomPhaseSecs:Math.max(0,pomPhaseSecs-Math.floor((Date.now()-pomPhaseStart)/1000));
+  }
+
+  // current pom break time (if currently in break phase)
+  const curPomBreak=(pomOn&&pomPhase==='break'&&pomPhaseStart&&!sessionState.paused)?Math.floor((Date.now()-pomPhaseStart)/1000):0;
+  const totalBreakSecs=(sessionState.breakSecs||0)+pomBreakAccSecs+curPomBreak;
+  const focusSecs=Math.max(0,elapsed-totalBreakSecs);
+  const effPct=elapsed>0?Math.round((focusSecs/elapsed)*100):100;
+  const phaseColor=pomPhase==='work'?color:'#22C55E';
+
   return(
     <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
-      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+      {/* status row */}
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
         <span style={{width:8,height:8,background:sessionState.paused?'var(--v1-fg-muted)':color,borderRadius:'50%',boxShadow:sessionState.paused?'none':`0 0 10px ${color}`,flexShrink:0}} className={sessionState.paused?'':'v1-pulse'}/>
-        <span style={{fontSize:11,letterSpacing:'0.14em',color:sessionState.paused?'var(--v1-fg-muted)':color,fontFamily:'var(--v1-mono)',fontWeight:600}}>{sessionState.paused?'● PAUSED':'● LIVE'}</span>
+        <span style={{fontSize:11,letterSpacing:'0.14em',color:sessionState.paused?'var(--v1-fg-muted)':color,fontFamily:'var(--v1-mono)',fontWeight:600}}>{sessionState.paused?'PAUSED':'LIVE'}</span>
         <span style={{flex:1}}/>
-        <span style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg-muted)'}}>started {new Date(sessionState.startedAt).toTimeString().slice(0,5)}</span>
+        <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)'}}>started {new Date(sessionState.startedAt).toTimeString().slice(0,5)}</span>
       </div>
+
+      {/* big timer + subject */}
       <div style={{display:'flex',alignItems:'baseline',gap:12,marginBottom:14}}>
-        <span style={{fontSize:64,lineHeight:0.88,letterSpacing:'-0.045em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{fmtClock(elapsed)}</span>
-        <span style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:8,height:8,background:color,borderRadius:1,flexShrink:0}}/><span style={{fontFamily:'var(--v1-sans)',fontSize:14,color:'var(--v1-fg-2)'}}>{sessionState.subject}</span></span>
+        <span style={{fontSize:60,lineHeight:0.88,letterSpacing:'-0.045em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{fmtClock(elapsed)}</span>
+        <span style={{display:'inline-flex',alignItems:'center',gap:6}}><span style={{width:8,height:8,background:color,borderRadius:1,flexShrink:0}}/><span style={{fontFamily:'var(--v1-mono)',fontSize:13,color:'var(--v1-fg-2)'}}>{sessionState.subject}</span></span>
       </div>
+
+      {/* pom phase bar */}
+      {pomOn&&pomRemaining!=null&&(
+        <div style={{marginBottom:12}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5}}>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.18em',textTransform:'uppercase',color:phaseColor,fontWeight:600}}>◷ {pomPhase}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:12,color:phaseColor,fontVariantNumeric:'tabular-nums'}}>{fmtClock(pomRemaining)}</span>
+            <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',marginLeft:'auto'}}>set {pomSets+1} · {pomWork}m/{pomBreak}m</span>
+          </div>
+          <div style={{height:3,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+            <div style={{position:'absolute',inset:0,width:`${pomPhaseSecs?((pomPhaseSecs-pomRemaining)/pomPhaseSecs)*100:0}%`,background:phaseColor,transition:'width 1s linear'}}/>
+          </div>
+        </div>
+      )}
+
+      {/* stats row: EFF · FOCUS · BREAK · SETS */}
+      <div style={{display:'grid',gridTemplateColumns:pomOn?'1fr 1fr 1fr 1fr':'1fr 1fr 1fr',borderTop:'1px solid var(--v1-rule)',marginBottom:12,marginTop:pomOn?0:2}}>
+        {[
+          {k:'EFF',v:`${effPct}%`,tone:effPct>=90?'up':effPct>=70?'flat':'down'},
+          {k:'FOCUS',v:fmtClock(focusSecs),tone:'flat'},
+          {k:'BREAK',v:totalBreakSecs>0?fmtClock(totalBreakSecs):'—',tone:totalBreakSecs>0?'down':'flat'},
+          ...(pomOn?[{k:'SETS',v:`${pomSets}`,tone:pomSets>0?'up':'flat'}]:[]),
+        ].map(({k,v,tone},i,arr)=>(
+          <div key={k} style={{padding:'8px 0 0',borderRight:i<arr.length-1?'1px solid var(--v1-rule)':'none',paddingLeft:i===0?0:10}}>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:8,letterSpacing:'0.18em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:3}}>{k}</div>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:13,fontVariantNumeric:'tabular-nums',color:tone==='up'?'var(--v1-up)':tone==='down'?'var(--v1-down)':'var(--v1-fg)'}}>{v}</div>
+          </div>
+        ))}
+      </div>
+
       <button onClick={()=>onNav('timer')} style={{...Btn.sm,borderColor:color,color:color,letterSpacing:'0.08em'}}>go to session →</button>
     </Block>
   );
