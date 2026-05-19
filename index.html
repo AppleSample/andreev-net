@@ -70,6 +70,9 @@ const{useState,useEffect,useRef,useMemo,useCallback}=React;
      weekly_secs int default 0, total_secs int default 0, streak int default 0,
      updated_at timestamptz default now()
    );
+   -- migrations (run if upgrading):
+   alter table user_stats add column if not exists current_subject text;
+   alter table user_stats add column if not exists subjects_json text;
    alter table user_stats enable row level security;
    create policy "read all" on user_stats for select using (true);
    create policy "own write" on user_stats for all using (auth.uid()=user_id);
