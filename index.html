@@ -3394,7 +3394,7 @@ function Shell({user,onLogout}){
         );
         const nAbove2=(onlineAlert?1:0)+(friendReqAlert?1:0)+(rankAlert?1:0)+(pbAlert?1:0);
         if(benchmarkAlert)toasts.push(
-          <div key="bench" style={{...toastStyle,top:52+nAbove*44,border:'1px solid var(--v1-up)',background:'rgba(13,20,14,0.97)'}}>
+          <div key="bench" style={{...toastStyle,top:52+nAbove2*44,border:'1px solid var(--v1-up)',background:'rgba(13,20,14,0.97)'}}>
             <span style={{fontSize:13,color:'var(--v1-up)',flexShrink:0}}>{benchmarkAlert.icon}</span>
             <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
               <span style={{color:'var(--v1-up)',fontSize:9,letterSpacing:'0.14em',marginRight:8,fontWeight:700}}>{benchmarkAlert.label}</span>
