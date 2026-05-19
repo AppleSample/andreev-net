@@ -761,7 +761,7 @@ function DashAgendaCompact({onNav,events=[],todos=[],todoStates={},setTodoStates
   );
 }
 
-function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[],events=[],todos=[],todoStates={},setTodoStates,weeklyReport=null}){
+function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=0,leaderboard=[],events=[],todos=[],todoStates={},setTodoStates,weeklyReport=null,pomOn=false,pomPhase='work',pomWork=25,pomBreak=5,pomPhaseStart=null,pomSets=0,pomBreakAccSecs=0}){
   const wkH=Math.floor(thisWkH);
   const wkM=Math.floor((thisWkH-wkH)*60);
   const _now=new Date();
