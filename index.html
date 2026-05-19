@@ -3259,8 +3259,10 @@ function Shell({user,onLogout}){
   },0);
 
   const _studiedKeys=new Set(sessions.filter(s=>s.created_at).map(s=>{const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}));
+  const _todayStudied=_studiedKeys.has(`${_sn.getFullYear()}-${_sn.getMonth()}-${_sn.getDate()}`);
+  const _streakStartI=_todayStudied?0:1; // if not yet studied today, start counting from yesterday
   let streak=0;
-  for(let i=0;i<365;i++){const d=new Date(_sn);d.setDate(_sn.getDate()-i);if(_studiedKeys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else if(i===0){break;}else{break;}}
+  for(let i=_streakStartI;i<365;i++){const d=new Date(_sn);d.setDate(_sn.getDate()-i);if(_studiedKeys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else{break;}}
 
   const _WDAYS=['mon','tue','wed','thu','fri','sat','sun'];
   const weekBars=_WDAYS.map((day,i)=>{
