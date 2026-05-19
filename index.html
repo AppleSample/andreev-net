@@ -3490,7 +3490,7 @@ function Shell({user,onLogout}){
       <div style={{display:'grid',gridTemplateColumns:'repeat(6,1fr)',borderBottom:'1px solid var(--v1-rule)',flexShrink:0,background:'var(--v1-bg-elev)'}}>
         {[
           {k:'today',  v:fmtHM(todayH),            d:_todaySub,                                    tone:_todayTone, nav:'dashboard'},
-          {k:'streak', v:`${streak}d`,               d:streak>0?`${streak} consecutive`:'no streak', tone:streak>0?'up':'flat', nav:'dashboard'},
+          {k:'streak', v:`${streak}d`,               d:streak===0?'no streak':_todayStudied?'secured today':_nowHour>=19?`at risk · ${23-_nowHour}h left`:'not yet today', tone:streak===0?'flat':_todayStudied?'up':_nowHour>=19?'down':'flat', nav:'dashboard'},
           {k:'wk',     v:fmtHM(thisWkH),            d:_wkSub,                                       tone:_wkTone,   nav:'heatmap'},
           {k:'rank',   v:myRank?`#${myRank}`:'—',   d:_rankSub,                                     tone:_rankTone, nav:'leader'},
           {k:'peak',   v:peakHour!=null?`${String(peakHour).padStart(2,'0')}h`:'—', d:peakHour!=null?_peakSub:'no data yet', tone:peakHour!=null?'flat':'flat', nav:'heatmap'},
