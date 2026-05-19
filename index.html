@@ -3131,7 +3131,9 @@ function Shell({user,onLogout}){
     // seed the initial count so first poll doesn't false-fire
     sbAPI.getPendingRequests(user.id).then(r=>{lastReqCountRef.current=r.length;}).catch(()=>{});
     const iv=setInterval(beat,120000);
-    return()=>clearInterval(iv);
+    // Faster leaderboard refresh for studying.now freshness (30s)
+    const ivLb=setInterval(()=>sbAPI.getLeaderboard(user.id).then(setLeaderboard).catch(()=>{}),30000);
+    return()=>{clearInterval(iv);clearInterval(ivLb);};
   },[user?.id]);
 
   // ⌘K shortcut
