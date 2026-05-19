@@ -3434,14 +3434,14 @@ function Shell({user,onLogout}){
     setSessions(prev=>{const next=[newEntry,...prev];checkMilestones(next,newEntry.subject);checkPersonalBests(next,newEntry);return next;});
     if(user?.id)sbAPI.addSession(user.id,{subject:newEntry.subject,duration:newEntry.duration,secs:elapsed,productivity:rating,note:'',day:dayStr,time:timeStr,color});
     setSessionState(DEFAULT_SESSION);
-    setPomOn(false);setPomPhaseStart(null);
+    setPomOn(false);setPomPhaseStart(null);setPomSets(0);setPomBreakAccSecs(0);
     sbAPI.heartbeat(user.id,null).catch(()=>{});
     setScreen('dashboard');
   };
 
   const handleDiscard=()=>{
     setSessionState(DEFAULT_SESSION);
-    setPomOn(false);setPomPhaseStart(null);
+    setPomOn(false);setPomPhaseStart(null);setPomSets(0);setPomBreakAccSecs(0);
     sbAPI.heartbeat(user.id,null).catch(()=>{});
     setScreen('dashboard');
   };
