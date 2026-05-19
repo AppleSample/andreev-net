@@ -819,7 +819,7 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
           </div>
         )}
         {sessionState&&sessionState.active
-          ? <DashSessionHero sessionState={sessionState} onNav={onNav} subjects={subjects}/>
+          ? <DashSessionHero sessionState={sessionState} onNav={onNav} subjects={subjects} pomOn={pomOn} pomPhase={pomPhase} pomWork={pomWork} pomBreak={pomBreak} pomPhaseStart={pomPhaseStart} pomSets={pomSets} pomBreakAccSecs={pomBreakAccSecs}/>
           : <Block label="this_week.hours" meta="current week">
               {thisWkH===0?(
                 <EmptyState icon="▷" title="no study hours yet this week"
