@@ -2314,7 +2314,10 @@ function Friend({user,leaderboard=[]}){
   const[results,setResults]=useState([]);
   const[status,setStatus]=useState(null); // {ok,err}
   const[searching,setSearching]=useState(false);
+  const[selectedFriend,setSelectedFriend]=useState(null);
   const inputRef=useRef(null);
+  const myLbEntry=leaderboard.find(u=>u.isYou);
+  const myLbH=(myLbEntry?.weekly_secs||0)/3600;
 
   useEffect(()=>{
     if(!_sb||!uid)return;
