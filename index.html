@@ -2487,7 +2487,7 @@ function Friend({user,leaderboard=[]}){
     <div>
       {selectedFriend&&(()=>{
         const lb=leaderboard.find(u=>u.id===selectedFriend.id);
-        return <FriendProfile friend={selectedFriend} lb={lb} myLbH={myLbH} onClose={()=>setSelectedFriend(null)}/>;
+        return <FriendProfile friend={selectedFriend} lb={lb} myLbH={myLbH} mySubjects={mySubjects} onClose={()=>setSelectedFriend(null)}/>;
       })()}
       {requests.length>0&&(
         <Block label="network.requests" meta={`${requests.length} pending`}>
