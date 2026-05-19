@@ -3330,6 +3330,7 @@ function Shell({user,onLogout}){
   const handleStartSession=subj=>{
     setShowPicker(false);
     setSessionState({active:true,subject:subj,startedAt:Date.now(),elapsed:0,paused:false,breakSecs:0,pausedAt:null});
+    setPomSets(0);setPomBreakAccSecs(0);
     setScreen('timer');
     if(user?.id)sbAPI.heartbeat(user.id,subj).catch(()=>{});
   };
