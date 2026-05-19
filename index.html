@@ -3370,6 +3370,9 @@ function Shell({user,onLogout}){
 
   const handleBegin=()=>{
     if(sessionState.active){setScreen('timer');return;}
+    // Re-fetch subjects each time the picker opens — guards against the async load
+    // not yet completing when the user clicks begin shortly after the app loads
+    if(user?.id)sbAPI.loadSubjects(user.id).then(data=>{if(data.length>0)setSubjects(data);}).catch(()=>{});
     setShowPicker(true);
   };
 
