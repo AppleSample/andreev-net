@@ -1338,10 +1338,9 @@ function Log({sessions,filterSubjects,filterMinProd}){
       </Block>
     );
   }
-  const hasEff=list.some(s=>s.efficiency!=null);
   return(
     <Block label="sessions.log" meta={`${list.length}${all.length!==list.length?` / ${all.length}`:''} entries`}>
-      <Tbl cols={['','date','time','subject','dur','prod',...(hasEff?['eff','break']:[]),'note']} widths={['4px','64px','52px','100px','72px','40px',...(hasEff?['44px','68px']:[]),'1fr']}>
+      <Tbl cols={['','date','time','subject','dur','prod','eff','break','note']} widths={['4px','64px','52px','100px','72px','40px','44px','64px','1fr']}>
         {list.map((s,i)=>(
           <Row key={i}>
             <span style={{width:4,height:18,background:s.color,display:'block'}}/>
@@ -1350,8 +1349,8 @@ function Log({sessions,filterSubjects,filterMinProd}){
             <Cell>{s.subject}</Cell>
             <Cell mono right>{s.duration}</Cell>
             <Cell mono right tone={s.productivity!=null&&s.productivity>=4?'up':'flat'}>{s.productivity!=null?s.productivity.toFixed(1):'—'}</Cell>
-            {hasEff&&<Cell mono right tone={s.efficiency!=null?(s.efficiency>=80?'up':s.efficiency>=60?'flat':'down'):'flat'}>{s.efficiency!=null?`${s.efficiency}%`:'—'}</Cell>}
-            {hasEff&&<Cell mono dim>{s.breakSecs>0?fmtClock(s.breakSecs):'—'}</Cell>}
+            <Cell mono right tone={s.efficiency!=null?(s.efficiency>=90?'up':s.efficiency>=70?'flat':'down'):'flat'}>{s.efficiency!=null?`${s.efficiency}%`:'—'}</Cell>
+            <Cell mono dim>{s.breakSecs>0?fmtClock(s.breakSecs):'—'}</Cell>
             <Cell dim sm>{s.note||'—'}</Cell>
           </Row>
         ))}
