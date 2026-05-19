@@ -3268,6 +3268,28 @@ function Shell({user,onLogout}){
       ?`+${fmtHM(_paceVsDelta)} ahead · ${fmtHM(_hNeeded/_daysLeft)}/day to finish`
       :`${fmtHM(Math.abs(_paceVsDelta))} behind pace · ${fmtHM(_hNeeded/_daysLeft)}/day left`;
 
+  // Weekly report — shown on Mondays for the first 20h of the day
+  const _weeklyReport=(()=>{
+    if(_todayDow!==0||_nowHour>=20)return null;
+    const reportKey=`dismissed_report_${_liveNow.toISOString().slice(0,10)}`;
+    if(localStorage.getItem(reportKey))return null;
+    // Last week: previous Mon midnight → this Mon midnight
+    const thisMonMidnight=new Date(_liveNow);thisMonMidnight.setDate(_liveNow.getDate()-_todayDow);thisMonMidnight.setHours(0,0,0,0);
+    const lastMonMidnight=new Date(thisMonMidnight);lastMonMidnight.setDate(thisMonMidnight.getDate()-7);
+    const prevMonMidnight=new Date(lastMonMidnight);prevMonMidnight.setDate(lastMonMidnight.getDate()-7);
+    const lastWkSessions=sessions.filter(s=>{if(!s.created_at)return false;const d=new Date(s.created_at);return d>=lastMonMidnight&&d<thisMonMidnight;});
+    const prevWkSessions=sessions.filter(s=>{if(!s.created_at)return false;const d=new Date(s.created_at);return d>=prevMonMidnight&&d<lastMonMidnight;});
+    const lastWkH=lastWkSessions.reduce((a,s)=>a+(s.secs||0)/3600,0);
+    const prevWkH=prevWkSessions.reduce((a,s)=>a+(s.secs||0)/3600,0);
+    if(lastWkH===0)return null; // nothing to report
+    const subjMap={};lastWkSessions.forEach(s=>{if(s.subject)subjMap[s.subject]=(subjMap[s.subject]||0)+(s.secs||0)/3600;});
+    const topSubj=Object.entries(subjMap).sort((a,b)=>b[1]-a[1])[0];
+    const ratedLw=lastWkSessions.filter(s=>s.productivity);
+    const avgProd=ratedLw.length?ratedLw.reduce((a,s)=>a+s.productivity,0)/ratedLw.length:null;
+    const delta=lastWkH-prevWkH;
+    return{lastWkH,prevWkH,delta,topSubj,sessions:lastWkSessions.length,avgProd,reportKey,metTarget:lastWkH>=weeklyTarget};
+  })();
+
   // Online friends: updated_at within last 5 minutes
   const _onlineTs=Date.now();
   const _totalFriends=leaderboard.filter(u=>!u.isYou).length;
