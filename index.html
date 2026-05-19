@@ -982,7 +982,8 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
     const phaseLen=(pomPhase==='work'?pomWork:pomBreak)*60;
     const spent=Math.floor((Date.now()-pomPhaseStart)/1000);
     if(spent>=phaseLen){
-      if(pomPhase==='break')pomAccBreakRef.current+=spent;
+      if(pomPhase==='break'){pomAccBreakRef.current+=spent;onPomBreakComplete&&onPomBreakComplete(spent);}
+      else{onPomSetComplete&&onPomSetComplete();}
       setPomPhase(p=>p==='work'?'break':'work');setPomPhaseStart(Date.now());
     }
   },[tick]);
