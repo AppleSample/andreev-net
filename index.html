@@ -2441,6 +2441,7 @@ function Friend({user,leaderboard=[]}){
   const inputRef=useRef(null);
   const myLbEntry=leaderboard.find(u=>u.isYou);
   const myLbH=(myLbEntry?.weekly_secs||0)/3600;
+  const mySubjects=React.useMemo(()=>{try{return JSON.parse(myLbEntry?.subjects_json||'[]');}catch{return[];}},[myLbEntry?.subjects_json]);
 
   useEffect(()=>{
     if(!_sb||!uid)return;
