@@ -2238,7 +2238,8 @@ function Subjects({user,subjects=[],setSubjects,sessions=[]}){
 }
 
 /* ── FRIEND PROFILE MODAL ── */
-function FriendProfile({friend,lb,myLbH,onClose}){
+function FriendProfile({friend,lb,myLbH,mySubjects,onClose}){
+  const[statTab,setStatTab]=useState('overview'); // 'overview' | 'subjects'
   const isOnline=lb?.updated_at&&(Date.now()-new Date(lb.updated_at))<5*60*1000;
   const wkH=(lb?.weekly_secs||0)/3600;
   const totalH=(lb?.total_secs||0)/3600;
@@ -2246,60 +2247,176 @@ function FriendProfile({friend,lb,myLbH,onClose}){
   const subject=lb?.current_subject||null;
   const lastSeen=lb?.updated_at?new Date(lb.updated_at):null;
   const lastSeenStr=lastSeen?(isOnline?'online now':`${Math.floor((Date.now()-lastSeen)/60000)}m ago`):'never';
-  const wkRatio=myLbH>0?Math.min(wkH/myLbH,2):wkH>0?1:0;
   const col=friendColor(friend.id);
+  // parse subjects_json — array of {name,totalH,wkH,sessions}
+  const friendSubjects=React.useMemo(()=>{try{return JSON.parse(lb?.subjects_json||'[]');}catch{return[];}},[lb?.subjects_json]);
+  const maxTotalH=friendSubjects.length>0?friendSubjects[0].totalH:1;
+  const maxWkH=friendSubjects.length>0?Math.max(...friendSubjects.map(s=>s.wkH),0.01):0.01;
+  // head-to-head bar normalization
+  const maxH=Math.max(wkH,myLbH,0.01);
+
+  const tabStyle=active=>({fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.14em',textTransform:'uppercase',padding:'6px 14px',cursor:'pointer',background:'transparent',border:'none',borderBottom:active?'2px solid var(--v1-accent)':'2px solid transparent',color:active?'var(--v1-accent)':'var(--v1-fg-muted)'});
+
   return(
-    <Modal title={`profile · ${friend.name.toLowerCase()}`} onClose={onClose} width={480}>
+    <Modal title={`profile · ${friend.name.toLowerCase()}`} onClose={onClose} width={500}>
+      {/* header: avatar + status */}
       <div style={{padding:'16px 18px',borderBottom:'1px solid var(--v1-rule)',display:'flex',alignItems:'center',gap:14}}>
-        <div style={{width:36,height:36,background:col,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--v1-mono)',fontSize:14,color:'var(--v1-bg)',fontWeight:700,flexShrink:0}}>
+        <div style={{width:40,height:40,background:col,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--v1-mono)',fontSize:16,color:'var(--v1-bg)',fontWeight:700,flexShrink:0,position:'relative'}}>
           {friend.name[0].toUpperCase()}
+          {isOnline&&<span style={{position:'absolute',bottom:-2,right:-2,width:9,height:9,borderRadius:'50%',background:'#6BD89A',border:'2px solid var(--v1-bg)',boxShadow:'0 0 6px #6BD89A'}}/>}
         </div>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:'var(--v1-mono)',fontSize:14,color:'var(--v1-fg)',fontWeight:600}}>{friend.name}</div>
           <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:isOnline?'#6BD89A':'var(--v1-fg-muted)',letterSpacing:'0.1em',marginTop:2}}>
-            {isOnline?<span><span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:'#6BD89A',marginRight:5}}/>ONLINE{subject?` · ${subject}`:''}</span>:`last seen ${lastSeenStr}`}
+            {isOnline?<span>● ONLINE{subject?` · ${subject}`:''}</span>:`last seen ${lastSeenStr}`}
           </div>
         </div>
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',borderBottom:'1px solid var(--v1-rule)'}}>
-        <div style={{padding:'14px 16px',borderRight:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>this week</div>
-          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(wkH)}</div>
-          {myLbH>0&&<div style={{fontSize:9,color:wkH>=myLbH?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{wkH>=myLbH?`+${fmtHM(wkH-myLbH)} ahead`:`${fmtHM(myLbH-wkH)} behind you`}</div>}
-        </div>
-        <div style={{padding:'14px 16px',borderRight:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>all time</div>
-          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(totalH)}</div>
-          <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{totalH.toFixed(1)}h logged</div>
-        </div>
-        <div style={{padding:'14px 16px'}}>
-          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>streak</div>
-          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:streak>0?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{streak}d</div>
-          <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{streak>0?'consecutive days':'no streak'}</div>
+        <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:2}}>
+          <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',letterSpacing:'0.1em'}}>ALL TIME</div>
+          <div style={{fontFamily:'var(--v1-mono)',fontSize:18,color:'var(--v1-fg)',fontVariantNumeric:'tabular-nums'}}>{fmtHM(totalH)}</div>
         </div>
       </div>
-      {myLbH>0&&(
-        <div style={{padding:'14px 18px',borderBottom:'1px solid var(--v1-rule)'}}>
-          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:8}}>weekly hours vs you</div>
-          <div style={{display:'flex',flexDirection:'column',gap:6}}>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:col,width:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{friend.name}</span>
-              <div style={{flex:1,height:6,background:'var(--v1-bg-elev-2)',position:'relative'}}>
-                <div style={{position:'absolute',inset:0,width:`${Math.min(100,wkRatio*50)}%`,background:col}}/>
-              </div>
-              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:48,textAlign:'right'}}>{fmtHM(wkH)}</span>
+
+      {/* tab bar */}
+      <div style={{display:'flex',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)'}}>
+        {['overview','subjects'].map(t=>(
+          <button key={t} style={tabStyle(statTab===t)} onClick={()=>setStatTab(t)}>{t}</button>
+        ))}
+      </div>
+
+      {statTab==='overview'&&(
+        <>
+          {/* 3 KPIs */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',borderBottom:'1px solid var(--v1-rule)'}}>
+            <div style={{padding:'12px 16px',borderRight:'1px solid var(--v1-rule)'}}>
+              <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>this week</div>
+              <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(wkH)}</div>
+              {myLbH>0&&<div style={{fontSize:9,color:wkH>=myLbH?'var(--v1-up)':'var(--v1-down)',fontFamily:'var(--v1-mono)',marginTop:2}}>{wkH>=myLbH?`+${fmtHM(wkH-myLbH)} ahead`:`${fmtHM(myLbH-wkH)} behind`}</div>}
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-accent)',width:80}}>you</span>
-              <div style={{flex:1,height:6,background:'var(--v1-bg-elev-2)',position:'relative'}}>
-                <div style={{position:'absolute',inset:0,width:`${Math.min(100,(1/Math.max(wkRatio,1))*50)}%`,background:'var(--v1-accent)'}}/>
-              </div>
-              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:48,textAlign:'right'}}>{fmtHM(myLbH)}</span>
+            <div style={{padding:'12px 16px',borderRight:'1px solid var(--v1-rule)'}}>
+              <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>sessions</div>
+              <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{friendSubjects.reduce((a,s)=>a+s.sessions,0)||'—'}</div>
+              <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>logged</div>
+            </div>
+            <div style={{padding:'12px 16px'}}>
+              <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>streak</div>
+              <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:streak>0?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{streak>0?`${streak}d`:'—'}</div>
+              <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{streak>0?'consecutive':'no streak'}</div>
             </div>
           </div>
+
+          {/* head-to-head weekly bars */}
+          <div style={{padding:'14px 18px',borderBottom:'1px solid var(--v1-rule)'}}>
+            <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:10}}>this week · head-to-head</div>
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+              {[{label:friend.name,h:wkH,color:col},{label:'you',h:myLbH,color:'var(--v1-accent)'}].map(({label,h,color})=>(
+                <div key={label} style={{display:'flex',alignItems:'center',gap:10}}>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color,width:72,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
+                  <div style={{flex:1,height:7,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                    <div style={{position:'absolute',inset:0,width:`${Math.min(100,(h/maxH)*100)}%`,background:color,transition:'width 0.4s ease'}}/>
+                  </div>
+                  <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:48,textAlign:'right'}}>{fmtHM(h)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* top subjects preview (up to 3) */}
+          {friendSubjects.length>0&&(
+            <div style={{padding:'14px 18px',borderBottom:'1px solid var(--v1-rule)'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>top subjects · all time</div>
+                <button onClick={()=>setStatTab('subjects')} style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-accent)',background:'transparent',border:'none',cursor:'pointer',letterSpacing:'0.08em'}}>see all →</button>
+              </div>
+              {friendSubjects.slice(0,3).map((s,i)=>{
+                const pct=Math.round((s.totalH/totalH)*100)||0;
+                const barPct=Math.round((s.totalH/maxTotalH)*100);
+                return(
+                  <div key={s.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:i<2?7:0}}>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg)',width:90,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</span>
+                    <div style={{flex:1,height:5,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                      <div style={{position:'absolute',inset:0,width:`${barPct}%`,background:col,opacity:0.8+0.2*(1-i*0.15)}}/>
+                    </div>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:36,textAlign:'right'}}>{fmtHM(s.totalH)}</span>
+                    <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:28,textAlign:'right'}}>{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
+      {statTab==='subjects'&&(
+        <div style={{padding:'14px 18px'}}>
+          {friendSubjects.length===0?(
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-muted)',textAlign:'center',padding:'24px 0'}}>no subject data yet</div>
+          ):(
+            <>
+              {/* column headers */}
+              <div style={{display:'grid',gridTemplateColumns:'1fr 80px 80px 40px 60px',gap:8,padding:'0 0 8px',borderBottom:'1px solid var(--v1-rule)',marginBottom:10}}>
+                {['subject','this week','all time','sess','share'].map(h=>(
+                  <div key={h} style={{fontFamily:'var(--v1-mono)',fontSize:8,letterSpacing:'0.16em',textTransform:'uppercase',color:'var(--v1-fg-muted)',textAlign:h==='subject'?'left':'right'}}>{h}</div>
+                ))}
+              </div>
+              {friendSubjects.map((s,i)=>{
+                const pct=totalH>0?Math.round((s.totalH/totalH)*100):0;
+                const barW=Math.round((s.totalH/maxTotalH)*100);
+                return(
+                  <div key={s.name} style={{marginBottom:14}}>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 80px 80px 40px 60px',gap:8,alignItems:'center',marginBottom:4}}>
+                      <div style={{display:'flex',alignItems:'center',gap:7}}>
+                        <span style={{width:6,height:6,background:col,flexShrink:0,opacity:1-i*0.1}}/>
+                        <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.name}</span>
+                      </div>
+                      <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:s.wkH>0?'var(--v1-fg)':'var(--v1-fg-muted)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{s.wkH>0?fmtHM(s.wkH):'—'}</span>
+                      <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',textAlign:'right',fontVariantNumeric:'tabular-nums'}}>{fmtHM(s.totalH)}</span>
+                      <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-muted)',textAlign:'right'}}>{s.sessions}</span>
+                      <span style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg-muted)',textAlign:'right'}}>{pct}%</span>
+                    </div>
+                    {/* stacked bar: friend vs you in same subject */}
+                    <div style={{display:'flex',gap:2,height:4}}>
+                      <div style={{background:col,width:`${barW}%`,transition:'width 0.4s ease',flexShrink:0}}/>
+                      <div style={{flex:1,background:'var(--v1-bg-elev-2)'}}/>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* subject comparison vs your subjects */}
+              {mySubjects&&mySubjects.length>0&&(()=>{
+                const overlap=friendSubjects.filter(fs=>mySubjects.find(ms=>ms.name.toLowerCase()===fs.name.toLowerCase()));
+                if(overlap.length===0)return null;
+                return(
+                  <div style={{marginTop:16,paddingTop:14,borderTop:'1px solid var(--v1-rule)'}}>
+                    <div style={{fontFamily:'var(--v1-mono)',fontSize:9,letterSpacing:'0.14em',textTransform:'uppercase',color:'var(--v1-fg-muted)',marginBottom:10}}>subjects in common · all time</div>
+                    {overlap.map(fs=>{
+                      const ms=mySubjects.find(s=>s.name.toLowerCase()===fs.name.toLowerCase());
+                      const myH=ms?.totalH||0;
+                      const mx=Math.max(fs.totalH,myH,0.01);
+                      return(
+                        <div key={fs.name} style={{marginBottom:12}}>
+                          <div style={{fontFamily:'var(--v1-mono)',fontSize:10,color:'var(--v1-fg)',marginBottom:5}}>{fs.name}</div>
+                          {[{label:friend.name,h:fs.totalH,color:col},{label:'you',h:myH,color:'var(--v1-accent)'}].map(({label,h,color})=>(
+                            <div key={label} style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+                              <span style={{fontFamily:'var(--v1-mono)',fontSize:8,color,width:56,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{label}</span>
+                              <div style={{flex:1,height:4,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                                <div style={{position:'absolute',inset:0,width:`${Math.min(100,(h/mx)*100)}%`,background:color}}/>
+                              </div>
+                              <span style={{fontFamily:'var(--v1-mono)',fontSize:8,color:'var(--v1-fg-muted)',width:40,textAlign:'right'}}>{fmtHM(h)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </>
+          )}
         </div>
       )}
-      <div style={{padding:'12px 18px',display:'flex',justifyContent:'flex-end'}}>
+
+      <div style={{padding:'10px 18px',borderTop:'1px solid var(--v1-rule)',display:'flex',justifyContent:'flex-end',background:'var(--v1-bg-elev)'}}>
         <button onClick={onClose} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',color:'var(--v1-fg-muted)',border:'1px solid var(--v1-rule)',padding:'6px 16px',cursor:'pointer'}}>close</button>
       </div>
     </Modal>
