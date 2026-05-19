@@ -3382,6 +3382,17 @@ function Shell({user,onLogout}){
           </div>
         );
         const nAbove=(onlineAlert?1:0)+(friendReqAlert?1:0)+(rankAlert?1:0);
+        if(pbAlert)toasts.push(
+          <div key="pb" style={{...toastStyle,top:52+nAbove*44,border:'1px solid #F2C14E',background:'rgba(20,18,10,0.97)'}}>
+            <span style={{fontSize:13,color:'#F2C14E',flexShrink:0}}>◉</span>
+            <div style={{fontFamily:'var(--v1-mono)',fontSize:11,color:'var(--v1-fg)',letterSpacing:'0.06em'}}>
+              <span style={{color:'#F2C14E',fontSize:9,letterSpacing:'0.14em',marginRight:8,fontWeight:700}}>PERSONAL BEST</span>
+              <span style={{fontWeight:600}}>{pbAlert.record}</span>
+              <span style={{color:'var(--v1-fg-muted)',marginLeft:8,fontSize:9}}>{pbAlert.value}{pbAlert.prev?` · prev ${pbAlert.prev}`:''}</span>
+            </div>
+          </div>
+        );
+        const nAbove2=(onlineAlert?1:0)+(friendReqAlert?1:0)+(rankAlert?1:0)+(pbAlert?1:0);
         if(benchmarkAlert)toasts.push(
           <div key="bench" style={{...toastStyle,top:52+nAbove*44,border:'1px solid var(--v1-up)',background:'rgba(13,20,14,0.97)'}}>
             <span style={{fontSize:13,color:'var(--v1-up)',flexShrink:0}}>{benchmarkAlert.icon}</span>
