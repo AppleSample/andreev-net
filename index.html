@@ -781,6 +781,37 @@ function Dashboard({onNav,sessions,sessionState,subjects=[],weekBars=[],thisWkH=
 
       {/* COL LEFT — no scroll */}
       <section style={{borderRight:'1px solid var(--v1-rule)',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        {weeklyReport&&(
+          <div style={{borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)',flexShrink:0}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'8px 18px 6px',borderBottom:'1px solid var(--v1-rule)'}}>
+              <span style={{fontSize:8,letterSpacing:'0.2em',color:weeklyReport.metTarget?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',fontWeight:700}}>{weeklyReport.metTarget?'▲ WEEKLY REPORT':'◈ WEEKLY REPORT'}</span>
+              <span style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'0.06em',flex:1}}>last week · {new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span>
+              <button onClick={()=>localStorage.setItem(weeklyReport.reportKey,'1')&&onNav('dashboard')} style={{background:'none',border:'none',color:'var(--v1-fg-muted)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:10,padding:'0 2px'}} onClick={()=>{localStorage.setItem(weeklyReport.reportKey,'1');onNav('dashboard');}}>✕</button>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',borderBottom:'none'}}>
+              <div style={{padding:'10px 14px',borderRight:'1px solid var(--v1-rule)'}}>
+                <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>last week</div>
+                <div style={{fontSize:19,fontVariantNumeric:'tabular-nums',color:weeklyReport.metTarget?'var(--v1-up)':'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(weeklyReport.lastWkH)}</div>
+                <div style={{fontSize:9,color:weeklyReport.delta>=0?'var(--v1-up)':'var(--v1-down)',fontFamily:'var(--v1-mono)',marginTop:2}}>{weeklyReport.delta>=0?'+':''}{fmtHM(Math.abs(weeklyReport.delta))} vs prior wk</div>
+              </div>
+              <div style={{padding:'10px 14px',borderRight:'1px solid var(--v1-rule)'}}>
+                <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>sessions</div>
+                <div style={{fontSize:19,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{weeklyReport.sessions}</div>
+                <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{weeklyReport.sessions>0?fmtHM(weeklyReport.lastWkH/weeklyReport.sessions)+' avg':'—'}</div>
+              </div>
+              <div style={{padding:'10px 14px',borderRight:'1px solid var(--v1-rule)'}}>
+                <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>top subject</div>
+                <div style={{fontSize:13,color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',fontWeight:600,marginBottom:2,letterSpacing:'0.01em',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{weeklyReport.topSubj?weeklyReport.topSubj[0]:'—'}</div>
+                <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>{weeklyReport.topSubj?fmtHM(weeklyReport.topSubj[1]):'no subject data'}</div>
+              </div>
+              <div style={{padding:'10px 14px'}}>
+                <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>avg quality</div>
+                <div style={{fontSize:19,fontVariantNumeric:'tabular-nums',color:weeklyReport.avgProd>=4?'var(--v1-up)':weeklyReport.avgProd>=3?'var(--v1-fg)':'var(--v1-down)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{weeklyReport.avgProd?weeklyReport.avgProd.toFixed(1):'—'}</div>
+                <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{weeklyReport.avgProd?'avg productivity / 5':'no ratings'}</div>
+              </div>
+            </div>
+          </div>
+        )}
         {sessionState&&sessionState.active
           ? <DashSessionHero sessionState={sessionState} onNav={onNav} subjects={subjects}/>
           : <Block label="this_week.hours" meta="current week">
