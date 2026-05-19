@@ -1235,19 +1235,19 @@ function Timer({sessionState,onPause,onCommit,onDiscard,onStart,onLogManual,subj
       {(()=>{
         const curBreakOngoing=sessionState.paused&&sessionState.pausedAt?Math.floor((Date.now()-sessionState.pausedAt)/1000):0;
         const totalBreak=(sessionState.breakSecs||0)+curBreakOngoing+pomBreakTotal;
-        const effPct=totalBreak>0?Math.round(focusElapsed/(focusElapsed+totalBreak)*100):null;
+        const effPct=focusElapsed>0?Math.round((focusElapsed/(focusElapsed+totalBreak))*100):100;
         const cells=[
           ['started',startedStr],
           ['subject',sessionState.subject],
           ['break',totalBreak>0?fmtClock(totalBreak):'—'],
-          ['efficiency',effPct!=null?`${effPct}%`:'—'],
+          ['efficiency',`${effPct}%`],
         ];
         return(
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0,width:640,border:'1px solid var(--v1-rule)'}}>
             {cells.map(([k,v],i)=>(
               <div key={k} style={{padding:'12px 16px',borderRight:i<3?'1px solid var(--v1-rule)':'none'}}>
                 <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)'}}>{k}</div>
-                <div style={{fontSize:18,color:k==='efficiency'&&effPct!=null?(effPct>=80?'var(--v1-up)':effPct>=60?'var(--v1-fg)':'var(--v1-down)'):'var(--v1-fg)',marginTop:4,fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{v}</div>
+                <div style={{fontSize:18,color:k==='efficiency'?(effPct>=90?'var(--v1-up)':effPct>=70?'var(--v1-fg)':'var(--v1-down)'):'var(--v1-fg)',marginTop:4,fontVariantNumeric:'tabular-nums',fontFamily:'var(--v1-mono)'}}>{v}</div>
               </div>
             ))}
           </div>
