@@ -2927,6 +2927,7 @@ function Shell({user,onLogout}){
   const rankAtHideRef=useRef(null);
   const myRankRef=useRef(null); // updated each render after myRank is computed
   const[benchmarkAlert,setBenchmarkAlert]=useState(null); // {icon, label, detail, value}
+  const[pbAlert,setPbAlert]=useState(null); // {record, prev, value}
   const[showTour,setShowTour]=useState(false);
   const[tourStep,setTourStep]=useState(0);
   const[events,setEvents]=useState(()=>{try{return JSON.parse(localStorage.getItem('andreev_events')||'[]');}catch{return[];}});
