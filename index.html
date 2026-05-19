@@ -3154,6 +3154,7 @@ function SubjectPicker({onStart,onClose,subjects=[]}){
   const[custom,setCustom]=useState('');
   const[picked,setPicked]=useState(null);
   const choose=subj=>{if(subj)onStart(subj);};
+  const hasSubjects=subjects.length>0;
   return(
     <div onClick={onClose} style={{position:'fixed',inset:0,zIndex:300,background:'rgba(5,6,8,0.80)',backdropFilter:'blur(6px)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{width:420,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
@@ -3163,7 +3164,7 @@ function SubjectPicker({onStart,onClose,subjects=[]}){
           <button onClick={onClose} style={{background:'transparent',border:'none',color:'var(--v1-fg-3)',cursor:'pointer',fontFamily:'var(--v1-mono)',fontSize:12}}>✕ esc</button>
         </div>
         <div style={{padding:18,display:'flex',flexDirection:'column',gap:12}}>
-          {subjects.length>0?(
+          {hasSubjects&&(
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
               {subjects.map(s=>{const color=s.color||'var(--v1-accent)';const a=picked===s.name;return(
                 <button key={s.name} onClick={()=>setPicked(s.name)} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:a?'rgba(79,123,255,0.10)':'var(--v1-bg)',border:`1px solid ${a?color:'var(--v1-rule-strong)'}`,color:a?'var(--v1-fg)':'var(--v1-fg-2)',fontFamily:'var(--v1-mono)',fontSize:12,cursor:'pointer',letterSpacing:'0.04em',textAlign:'left'}}>
@@ -3172,15 +3173,12 @@ function SubjectPicker({onStart,onClose,subjects=[]}){
                 </button>
               );})}
             </div>
-          ):(
-            <div style={{fontSize:11,color:'var(--v1-fg-muted)',textAlign:'center',padding:'12px 0'}}>
-              no subjects yet — type one below or add subjects in the subj tab
-            </div>
           )}
-          <div style={{borderTop:'1px solid var(--v1-rule)',paddingTop:12}}>
-            <div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>or type custom subject</div>
-            <Input value={custom} onChange={v=>{setCustom(v);setPicked(null);}} placeholder="e.g. chemistry, language..." autoFocus={false}
+          <div style={hasSubjects?{borderTop:'1px solid var(--v1-rule)',paddingTop:12}:{}}>
+            {hasSubjects&&<div style={{fontSize:9,letterSpacing:'0.16em',color:'var(--v1-fg-muted)',textTransform:'uppercase',marginBottom:6,fontFamily:'var(--v1-mono)'}}>or type custom subject</div>}
+            <Input value={custom} onChange={v=>{setCustom(v);setPicked(null);}} placeholder="e.g. chemistry, language..." autoFocus={!hasSubjects}
               onKeyDown={e=>{if(e.key==='Enter'&&custom.trim()){choose(custom.trim());}}}/>
+            {!hasSubjects&&<div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',marginTop:6,letterSpacing:'0.06em'}}>type any subject name · add saved subjects in the subj tab</div>}
           </div>
           <button
             disabled={!picked&&!custom.trim()}
