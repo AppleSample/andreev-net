@@ -2231,6 +2231,75 @@ function Subjects({user,subjects=[],setSubjects,sessions=[]}){
   );
 }
 
+/* ── FRIEND PROFILE MODAL ── */
+function FriendProfile({friend,lb,myLbH,onClose}){
+  const isOnline=lb?.updated_at&&(Date.now()-new Date(lb.updated_at))<5*60*1000;
+  const wkH=(lb?.weekly_secs||0)/3600;
+  const totalH=(lb?.total_secs||0)/3600;
+  const streak=lb?.streak||0;
+  const subject=lb?.current_subject||null;
+  const lastSeen=lb?.updated_at?new Date(lb.updated_at):null;
+  const lastSeenStr=lastSeen?(isOnline?'online now':`${Math.floor((Date.now()-lastSeen)/60000)}m ago`):'never';
+  const wkRatio=myLbH>0?Math.min(wkH/myLbH,2):wkH>0?1:0;
+  const col=friendColor(friend.id);
+  return(
+    <Modal title={`profile · ${friend.name.toLowerCase()}`} onClose={onClose} width={480}>
+      <div style={{padding:'16px 18px',borderBottom:'1px solid var(--v1-rule)',display:'flex',alignItems:'center',gap:14}}>
+        <div style={{width:36,height:36,background:col,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--v1-mono)',fontSize:14,color:'var(--v1-bg)',fontWeight:700,flexShrink:0}}>
+          {friend.name[0].toUpperCase()}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:'var(--v1-mono)',fontSize:14,color:'var(--v1-fg)',fontWeight:600}}>{friend.name}</div>
+          <div style={{fontFamily:'var(--v1-mono)',fontSize:9,color:isOnline?'#6BD89A':'var(--v1-fg-muted)',letterSpacing:'0.1em',marginTop:2}}>
+            {isOnline?<span><span style={{display:'inline-block',width:6,height:6,borderRadius:'50%',background:'#6BD89A',marginRight:5}}/>ONLINE{subject?` · ${subject}`:''}</span>:`last seen ${lastSeenStr}`}
+          </div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',borderBottom:'1px solid var(--v1-rule)'}}>
+        <div style={{padding:'14px 16px',borderRight:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>this week</div>
+          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(wkH)}</div>
+          {myLbH>0&&<div style={{fontSize:9,color:wkH>=myLbH?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{wkH>=myLbH?`+${fmtHM(wkH-myLbH)} ahead`:`${fmtHM(myLbH-wkH)} behind you`}</div>}
+        </div>
+        <div style={{padding:'14px 16px',borderRight:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>all time</div>
+          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:'var(--v1-fg)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{fmtHM(totalH)}</div>
+          <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{totalH.toFixed(1)}h logged</div>
+        </div>
+        <div style={{padding:'14px 16px'}}>
+          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:4}}>streak</div>
+          <div style={{fontSize:20,fontVariantNumeric:'tabular-nums',color:streak>0?'var(--v1-up)':'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',letterSpacing:'-0.02em'}}>{streak}d</div>
+          <div style={{fontSize:9,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)',marginTop:2}}>{streak>0?'consecutive days':'no streak'}</div>
+        </div>
+      </div>
+      {myLbH>0&&(
+        <div style={{padding:'14px 18px',borderBottom:'1px solid var(--v1-rule)'}}>
+          <div style={{fontSize:9,letterSpacing:'0.14em',color:'var(--v1-fg-muted)',textTransform:'uppercase',fontFamily:'var(--v1-mono)',marginBottom:8}}>weekly hours vs you</div>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:col,width:80,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{friend.name}</span>
+              <div style={{flex:1,height:6,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                <div style={{position:'absolute',inset:0,width:`${Math.min(100,wkRatio*50)}%`,background:col}}/>
+              </div>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:48,textAlign:'right'}}>{fmtHM(wkH)}</span>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10}}>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-accent)',width:80}}>you</span>
+              <div style={{flex:1,height:6,background:'var(--v1-bg-elev-2)',position:'relative'}}>
+                <div style={{position:'absolute',inset:0,width:`${Math.min(100,(1/Math.max(wkRatio,1))*50)}%`,background:'var(--v1-accent)'}}/>
+              </div>
+              <span style={{fontFamily:'var(--v1-mono)',fontSize:9,color:'var(--v1-fg-muted)',width:48,textAlign:'right'}}>{fmtHM(myLbH)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{padding:'12px 18px',display:'flex',justifyContent:'flex-end'}}>
+        <button onClick={onClose} style={{fontFamily:'var(--v1-mono)',fontSize:10,letterSpacing:'0.12em',background:'transparent',color:'var(--v1-fg-muted)',border:'1px solid var(--v1-rule)',padding:'6px 16px',cursor:'pointer'}}>close</button>
+      </div>
+    </Modal>
+  );
+}
+
 /* ── NETWORK ── */
 const FRIEND_COLORS=['#5B9DAB','#C89B5C','#8B7DB8','#C77B7B','#6FA88A','#A8786F','#7B9BC8','#B8A85C'];
 function friendColor(id){let h=0;for(let i=0;i<(id||'').length;i++)h=(h*31+id.charCodeAt(i))>>>0;return FRIEND_COLORS[h%FRIEND_COLORS.length];}
