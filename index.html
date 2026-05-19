@@ -3121,6 +3121,42 @@ function Shell({user,onLogout}){
     }
   };
 
+  const checkPersonalBests=(allSessions,newEntry)=>{
+    const stored=JSON.parse(localStorage.getItem('personal_bests')||'{}');
+    const hits=[];
+    // Longest single session
+    const prevLongest=stored.longestSecs||0;
+    if(newEntry.secs>prevLongest&&newEntry.secs>0){
+      hits.push({record:'LONGEST SESSION',prev:prevLongest>0?fmtHM(prevLongest/3600):null,value:fmtHM(newEntry.secs/3600)});
+      stored.longestSecs=newEntry.secs;
+    }
+    // Best single day (today)
+    const today=new Date(newEntry.created_at);
+    const todayKey=`${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+    const todayH=allSessions.filter(s=>{if(!s.created_at)return false;const d=new Date(s.created_at);return`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`===todayKey;}).reduce((a,s)=>a+(s.secs||0)/3600,0);
+    const prevBestDay=stored.bestDayH||0;
+    if(todayH>prevBestDay+0.01){
+      hits.push({record:'BEST DAY',prev:prevBestDay>0?fmtHM(prevBestDay):null,value:fmtHM(todayH)});
+      stored.bestDayH=todayH;
+    }
+    // Best week (current Mon–Sun)
+    const now2=new Date(newEntry.created_at);
+    const dow=(now2.getDay()+6)%7;
+    const monMidnight=new Date(now2);monMidnight.setDate(now2.getDate()-dow);monMidnight.setHours(0,0,0,0);
+    const wkH=allSessions.filter(s=>{if(!s.created_at)return false;const d=new Date(s.created_at);return d>=monMidnight;}).reduce((a,s)=>a+(s.secs||0)/3600,0);
+    const prevBestWk=stored.bestWeekH||0;
+    if(wkH>prevBestWk+0.01){
+      hits.push({record:'BEST WEEK',prev:prevBestWk>0?fmtHM(prevBestWk):null,value:fmtHM(wkH)});
+      stored.bestWeekH=wkH;
+    }
+    if(hits.length>0){
+      localStorage.setItem('personal_bests',JSON.stringify(stored));
+      const h=hits[0];
+      setPbAlert(h);
+      setTimeout(()=>setPbAlert(null),8000);
+    }
+  };
+
   const handleCommit=(rating,elapsed,breakSecs)=>{
     const now2=new Date();
     const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
