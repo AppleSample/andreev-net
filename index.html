@@ -331,7 +331,10 @@ function computeStats(sessions){
   const todayKey=`${n.getFullYear()}-${n.getMonth()}-${n.getDate()}`;
   const startI=keys.has(todayKey)?0:1;
   let streak=0;for(let i=startI;i<365;i++){const d=new Date(n);d.setDate(n.getDate()-i);if(keys.has(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`)){streak++;}else{break;}}
-  return{thisWkH,totalH,streak};
+  const totalMap={};const wkMap={};const sessionCounts={};
+  sessions.forEach(s=>{if(!s.subject)return;const h=sessH(s);totalMap[s.subject]=(totalMap[s.subject]||0)+h;sessionCounts[s.subject]=(sessionCounts[s.subject]||0)+1;if(s.created_at&&new Date(s.created_at)>=wkMon)wkMap[s.subject]=(wkMap[s.subject]||0)+h;});
+  const subjects=Object.entries(totalMap).map(([name,th])=>({name,totalH:th,wkH:wkMap[name]||0,sessions:sessionCounts[name]||0})).sort((a,b)=>b.totalH-a.totalH).slice(0,8);
+  return{thisWkH,totalH,streak,subjects};
 }
 function computeUserSeries(sessions,scope){
   const sc=SCOPES.find(s=>s.id===scope);
