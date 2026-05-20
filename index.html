@@ -3618,7 +3618,7 @@ function Shell({user,onLogout}){
         const isLast=tourStep===TOUR_STEPS.length-1;
         const dismiss=()=>{localStorage.setItem('seen_tour','1');setShowTour(false);setTourStep(0);};
         return(
-          <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center',backdropFilter:'blur(2px)'}}>
+          <div style={{position:'fixed',inset:0,zIndex:10000,background:'rgba(0,0,0,0.75)',display:'flex',alignItems:'center',justifyContent:'center'}}>
             <div style={{background:'var(--v1-bg-elev-2)',border:'1px solid var(--v1-rule-strong)',width:480,fontFamily:'var(--v1-mono)'}}>
               <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px',borderBottom:'1px solid var(--v1-rule)',background:'var(--v1-bg-elev)'}}>
                 <span style={{fontSize:8,letterSpacing:'0.2em',color:'var(--v1-accent)',fontWeight:700}}>{step.tag}</span>
