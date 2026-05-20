@@ -3173,7 +3173,7 @@ function Shell({user,onLogout}){
   const[showShareCard,setShowShareCard]=useState(false);
   const[filterSubjects,setFilterSubjects]=useState([]);
   const[filterMinProd,setFilterMinProd]=useState(0);
-  const tick=useTick(1000);
+  const tick=useTick();
 
   // Pomodoro state lifted here so it survives tab switches
   const[pomOn,setPomOn]=useState(false);
