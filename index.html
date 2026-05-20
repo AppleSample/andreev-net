@@ -3253,6 +3253,7 @@ function Shell({user,onLogout}){
   useEffect(()=>{
     if(!user?.id||!_sb)return;
     const beat=()=>{
+      if(document.visibilityState==='hidden')return;
       const ss=sessionStateRef.current;
       // Only ping if actually in a session — no session = let updated_at go stale → appear offline
       if(ss.active)sbAPI.heartbeat(user.id,ss.subject).catch(()=>{});
