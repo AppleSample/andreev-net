@@ -2658,7 +2658,7 @@ function FilterPanel({subjects,onClose,filterSubjects,setFilterSubjects,filterMi
   };
 
   return(
-    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',backdropFilter:'blur(6px)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:100}}>
+    <div onClick={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:'fixed',inset:0,zIndex:400,background:'rgba(5,6,8,0.72)',display:'flex',alignItems:'flex-start',justifyContent:'center',paddingTop:100}}>
       <div style={{width:520,background:'var(--v1-bg-elev)',border:'1px solid var(--v1-rule-strong)',fontFamily:'var(--v1-mono)',boxShadow:'0 24px 60px rgba(0,0,0,0.7)'}}>
         {/* input */}
         <div style={{display:'flex',alignItems:'center',padding:'0 14px',borderBottom:'1px solid var(--v1-rule)',gap:10}}>
