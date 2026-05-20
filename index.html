@@ -373,9 +373,17 @@ function computeSubjectSeries(sessions,subjectName,scope){
 }
 
 /* ── ATOMS ── */
-function useTick(ms=1000){const[t,setT]=useState(0);useEffect(()=>{const id=setInterval(()=>setT(x=>x+1),ms);return()=>clearInterval(id);},[ms]);return t;}
+// Singleton 1-second tick shared across all components — one interval for the whole app.
+// Pauses automatically when the tab is hidden to avoid burning CPU in the background.
+let _tickSubs=new Set(),_tickId=null,_tickN=0;
+function _tickStart(){if(_tickId)return;_tickId=setInterval(()=>{_tickN++;_tickSubs.forEach(fn=>fn(_tickN));},1000);}
+function _tickStop(){clearInterval(_tickId);_tickId=null;}
+if(typeof document!=='undefined'){
+  document.addEventListener('visibilitychange',()=>document.visibilityState==='hidden'?_tickStop():_tickStart());
+  _tickStart();
+}
+function useTick(){const[t,setT]=useState(_tickN);useEffect(()=>{_tickSubs.add(setT);return()=>_tickSubs.delete(setT);},[]);return t;}
 function fmtClock(s){const h=Math.floor(s/3600).toString().padStart(2,'0'),m=Math.floor((s%3600)/60).toString().padStart(2,'0'),sec=(s%60).toString().padStart(2,'0');return`${h}:${m}:${sec}`;}
-function LiveClock({start=4462,size=14}){const t=useTick(1000);return<span style={{fontFamily:'var(--v1-mono)',fontSize:size,fontVariantNumeric:'tabular-nums',letterSpacing:'-0.01em'}}>{fmtClock(start+t)}</span>;}
 function Cursor({size='0.85em',color}){return<span style={{display:'inline-block',width:size,height:size,background:color||'currentColor',verticalAlign:'-0.08em',animation:'pblink 1.06s steps(2,jump-none) infinite',marginLeft:'0.15em'}}/>;}
 function Spark({data,w=120,h=28,color='currentColor',fill=false,sw=1.25}){
   if(!data||data.length<2)return null;
