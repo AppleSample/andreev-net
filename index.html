@@ -580,41 +580,6 @@ function EmptyState({icon='◇',title,hint,action}){
   );
 }
 
-/* ── DASHBOARD SESSION BLOCK ── */
-function DashSessionBlock({sessionState,onNav,subjects=[]}){
-  const tick=useTick(1000);
-  const elapsed=sessionState&&sessionState.active
-    ?(sessionState.paused
-      ?sessionState.elapsed
-      :sessionState.elapsed+Math.floor((Date.now()-sessionState.startedAt)/1000))
-    :0;
-
-  if(!sessionState||!sessionState.active){
-    return(
-      <Block label="session.active" meta="no session running">
-        <div style={{padding:'10px 0',display:'flex',flexDirection:'column',gap:8}}>
-          <div style={{fontSize:12,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>no active session</div>
-          <div style={{fontSize:10,color:'var(--v1-fg-3)',fontFamily:'var(--v1-mono)'}}>click begin → to start tracking</div>
-        </div>
-      </Block>
-    );
-  }
-
-  const subjData=subjects.find(s=>s.name===sessionState.subject);
-  const color=subjData?subjData.color:'var(--v1-accent)';
-  return(
-    <Block label="session.active" meta={`${sessionState.subject} · ${sessionState.paused?'paused':'live'}`}>
-      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-        <span style={{width:6,height:6,background:sessionState.paused?'var(--v1-fg-muted)':color,borderRadius:'50%',boxShadow:sessionState.paused?'none':`0 0 8px ${color}`,flexShrink:0}} className={sessionState.paused?'':'v1-pulse'}/>
-        <span style={{fontSize:10,letterSpacing:'0.14em',color:sessionState.paused?'var(--v1-fg-muted)':color,fontFamily:'var(--v1-mono)'}}>{sessionState.paused?'● PAUSED':'● LIVE'}</span>
-        <span style={{flex:1}}/>
-        <span style={{fontSize:10,color:'var(--v1-fg-muted)',fontFamily:'var(--v1-mono)'}}>{sessionState.subject}</span>
-      </div>
-      <div style={{fontSize:40,lineHeight:1,letterSpacing:'-0.04em',fontWeight:500,color:sessionState.paused?'var(--v1-fg-muted)':'var(--v1-fg)',marginBottom:10,fontFamily:'var(--v1-mono)',fontVariantNumeric:'tabular-nums'}}>{fmtClock(elapsed)}</div>
-      <button onClick={()=>onNav('timer')} style={{...Btn.sm,borderColor:color,color:color}}>go to session →</button>
-    </Block>
-  );
-}
 
 /* ── DASHBOARD SESSION HERO (replaces hours block when session is active) ── */
 function DashSessionHero({sessionState,onNav,subjects=[],pomOn=false,pomPhase='work',pomWork=25,pomBreak=5,pomPhaseStart=null,pomSets=0,pomBreakAccSecs=0}){
