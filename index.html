@@ -148,23 +148,19 @@ const sbAPI={
   },
   async getLeaderboard(uid){
     const{data:reqs}=await _sb.from('friend_requests').select('from_id,to_id').or(`from_id.eq.${uid},to_id.eq.${uid}`).eq('status','accepted');
-    const friendIds=[...new Set((reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id))];
-    const allIds=[uid,...friendIds];
+    const friendIds=[...new Set((reqs||[]).map(r=>r.from_id===uid?r.to_id:r.from_id).filter(id=>id!==uid))];
+    const allIds=[...new Set([uid,...friendIds])];
     const[{data:stats},{data:profs}]=await Promise.all([
       _sb.from('user_stats').select('*').in('user_id',allIds).order('updated_at',{ascending:false}),
       _sb.from('profiles').select('id,name').in('id',allIds),
     ]);
     const nameMap=Object.fromEntries((profs||[]).map(p=>[p.id,p.name]));
-    // Deduplicate by user_id keeping the row with the most recent updated_at.
-    // Cannot rely on ORDER BY because PostgreSQL puts NULLs first in DESC, which
-    // would cause a ghost row with 0 hours to shadow the real row.
     const best=new Map();
     for(const s of(stats||[])){
       if(!s.user_id)continue;
       const prev=best.get(s.user_id);
       if(!prev||(s.updated_at&&(!prev.updated_at||s.updated_at>prev.updated_at)))best.set(s.user_id,s);
     }
-    // Include all friends even if they have no user_stats row yet (show 0 hours)
     return allIds.map(id=>{
       const s=best.get(id);
       return{id,name:nameMap[id]||'unknown',isYou:id===uid,weekly_secs:s?.weekly_secs||0,total_secs:s?.total_secs||0,streak:s?.streak||0,updated_at:s?.updated_at||null,current_subject:s?.current_subject||null,subjects_json:s?.subjects_json||null};
