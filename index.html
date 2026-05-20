@@ -3330,8 +3330,6 @@ function Shell({user,onLogout}){
     return leaderboard.map(u=>u.isYou?{...u,weekly_secs:Math.round(s.thisWkH*3600),total_secs:Math.round(s.totalH*3600),streak:s.streak,subjects_json:JSON.stringify(s.subjects||[])}:u);
   },[leaderboard,sessions]);
 
-  const clockStr=new Date().toLocaleTimeString('en-GB',{timeZone:'Europe/Madrid',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
-
   useEffect(()=>{
     const onKey=e=>{if(e.key==='Escape'&&showPicker)setShowPicker(false);};
     window.addEventListener('keydown',onKey);
