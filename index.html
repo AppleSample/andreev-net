@@ -3327,10 +3327,19 @@ function Shell({user,onLogout}){
     rankAtHideRef.current=null;
   },[leaderboard]);
 
-  // Always patch the "you" entry with locally-computed stats so it's never stale
+  // Always patch the "you" entry with locally-computed stats so it's never stale.
+  // For friends: if their stats_week is from a previous week, zero out weekly_secs so
+  // the leaderboard correctly resets at the start of each new week.
   const liveLeaderboard=React.useMemo(()=>{
     const s=computeStats(sessions);
-    return leaderboard.map(u=>u.isYou?{...u,weekly_secs:Math.round(s.thisWkH*3600),total_secs:Math.round(s.totalH*3600),streak:s.streak,subjects_json:JSON.stringify(s.subjects||[])}:u);
+    const _n=new Date();const _dow=(_n.getDay()+6)%7;const _m=new Date(_n);_m.setDate(_n.getDate()-_dow);_m.setHours(0,0,0,0);
+    const curWkStr=_m.toISOString().split('T')[0];
+    return leaderboard.map(u=>{
+      if(u.isYou)return{...u,weekly_secs:Math.round(s.thisWkH*3600),total_secs:Math.round(s.totalH*3600),streak:s.streak,subjects_json:JSON.stringify(s.subjects||[])};
+      // Friend hasn't logged anything this week — their stored weekly_secs is from a past week
+      const stale=!u.stats_week||u.stats_week<curWkStr;
+      return stale?{...u,weekly_secs:0}:u;
+    });
   },[leaderboard,sessions]);
 
   useEffect(()=>{
