@@ -166,7 +166,7 @@ const sbAPI={
     }
     return allIds.map(id=>{
       const s=best.get(id);
-      return{id,name:nameMap[id]||'unknown',isYou:id===uid,weekly_secs:s?.weekly_secs||0,total_secs:s?.total_secs||0,streak:s?.streak||0,updated_at:s?.updated_at||null,current_subject:s?.current_subject||null,subjects_json:s?.subjects_json||null};
+      return{id,name:nameMap[id]||'unknown',isYou:id===uid,weekly_secs:s?.weekly_secs||0,total_secs:s?.total_secs||0,streak:s?.streak||0,updated_at:s?.updated_at||null,current_subject:s?.current_subject||null,subjects_json:s?.subjects_json||null,stats_week:s?.stats_week||null};
     });
   },
   async removeFriend(uid,friendId){
