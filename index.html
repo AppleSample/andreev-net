@@ -141,7 +141,9 @@ const sbAPI={
     return pr||[];
   },
   async upsertStats(uid,stats){
-    await _sb.from('user_stats').upsert({user_id:uid,weekly_secs:Math.round((stats.thisWkH||0)*3600),total_secs:Math.round((stats.totalH||0)*3600),streak:stats.streak||0,updated_at:new Date().toISOString(),subjects_json:JSON.stringify(stats.subjects||[])},{onConflict:'user_id'});
+    const _n=new Date();const _dow=(_n.getDay()+6)%7;const _m=new Date(_n);_m.setDate(_n.getDate()-_dow);_m.setHours(0,0,0,0);
+    const statsWeek=_m.toISOString().split('T')[0];
+    await _sb.from('user_stats').upsert({user_id:uid,weekly_secs:Math.round((stats.thisWkH||0)*3600),total_secs:Math.round((stats.totalH||0)*3600),streak:stats.streak||0,updated_at:new Date().toISOString(),subjects_json:JSON.stringify(stats.subjects||[]),stats_week:statsWeek},{onConflict:'user_id'});
   },
   async heartbeat(uid,subject){
     const patch={updated_at:new Date().toISOString(),current_subject:subject||null};
