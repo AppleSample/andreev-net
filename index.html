@@ -73,6 +73,7 @@ const{useState,useEffect,useRef,useMemo,useCallback}=React;
    -- migrations (run if upgrading):
    alter table user_stats add column if not exists current_subject text;
    alter table user_stats add column if not exists subjects_json text;
+   alter table user_stats add column if not exists stats_week date;
    alter table user_stats enable row level security;
    create policy "read all" on user_stats for select using (true);
    create policy "own write" on user_stats for all using (auth.uid()=user_id);
